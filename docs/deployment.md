@@ -1,7 +1,13 @@
 # Public browser deployment
 
-Live app: https://dungeon-architet.vercel.app
+Live app: https://dungeon-architect-daa.vercel.app
 Repository: https://github.com/qazi-muhammad-ahad/Dungeon-Architect
+
+The preferred `dungeon-architect.vercel.app` was already taken, so the owner's
+requested fallback is the public address. It is verified and attached to the
+existing Vercel project `dungeon-architet` for future production deployments.
+The internal project slug and historical deployment URLs keep their original
+spelling. Use the corrected public address above when sharing the app.
 
 The browser app uses the same C++ algorithms as the CLI, compiled to WebAssembly.
 Vercel serves static files only. No server functions, API endpoints, database,

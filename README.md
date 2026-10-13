@@ -1,6 +1,6 @@
 # Dungeon Architect
 
-**[Open the live app](https://dungeon-architet.vercel.app)** in desktop Chrome.
+**[Open the live app](https://dungeon-architect-daa.vercel.app)** in desktop Chrome.
 Public source: [qazi-muhammad-ahad/Dungeon-Architect](https://github.com/qazi-muhammad-ahad/Dungeon-Architect).
 For browser hosting, reproducible builds, and traffic protection, see
 [deployment](docs/deployment.md) and [security](SECURITY.md).
