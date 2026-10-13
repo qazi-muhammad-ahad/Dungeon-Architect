@@ -24,6 +24,7 @@ restore_sdk() {
   git -C "$directory" checkout --quiet --force --detach "$revision"
 }
 restore_sdk .tools/flutter https://github.com/flutter/flutter.git "$FLUTTER_REVISION"
+git -C .tools/flutter fetch --quiet --depth 1 origin "refs/tags/$FLUTTER_VERSION:refs/tags/$FLUTTER_VERSION"
 [[ "$(git -C .tools/flutter rev-parse HEAD)" == "$FLUTTER_REVISION" ]] || { echo 'Unexpected Flutter revision'; exit 1; }
 restore_sdk .tools/emsdk https://github.com/emscripten-core/emsdk.git "$EMSDK_REVISION"
 [[ "$(git -C .tools/emsdk rev-parse HEAD)" == "$EMSDK_REVISION" ]] || { echo 'Unexpected Emsdk revision'; exit 1; }
