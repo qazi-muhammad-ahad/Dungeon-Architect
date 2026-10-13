@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "engine_version": "0.3.0",
+  "source": {
+    "name": "boundary-conflict",
+    "settings": {
+      "columns": 12,
+      "rows": 10,
+      "room_count": 4,
+      "room_width": [
+        2,
+        4
+      ],
+      "room_height": [
+        2,
+        4
+      ],
+      "margin": 1,
+      "corridor_width": 1,
+      "seed": 5489,
+      "max_generation_attempts": 1000,
+      "max_work_units": 100000000,
+      "max_time_ms": 30000,
+      "threat_budget": 8
+    },
+    "allowed_mask": [
+      "111111111111",
+      "111111111111",
+      "111111111111",
+      "111111111111",
+      "111111111111",
+      "111111111111",
+      "111111111111",
+      "111111111111",
+      "111111111111",
+      "111111111111"
+    ],
+    "rooms": [
+      {
+        "id": "entry-1",
+        "name": "Entrance",
+        "bounds": {
+          "x": 0,
+          "y": 1,
+          "width": 2,
+          "height": 2
+        },
+        "role": "entrance",
+        "tags": [
+          "stone"
+        ],
+        "lock_position": true,
+        "lock_size": true,
+        "capacity_override": 0
+      },
+      {
+        "id": "boss-1",
+        "name": "Guardian hall",
+        "bounds": {
+          "x": 8,
+          "y": 6,
+          "width": 3,
+          "height": 3
+        },
+        "role": "boss",
+        "tags": [
+          "stone",
+          "elite"
+        ],
+        "lock_position": true,
+        "lock_size": true,
+        "capacity_override": null
+      }
+    ],
+    "packs": [
+      {
+        "id": "skeletons-1",
+        "name": "Skeleton patrol",
+        "active": true,
+        "slots": 2,
+        "threat": 3,
+        "score": 5,
+        "min_room_width": 2,
+        "min_room_height": 2,
+        "allowed_roles": [
+          "normal",
+          "boss"
+        ],
+        "required_tags": [
+          "stone"
+        ]
+      },
+      {
+        "id": "skeletons-2",
+        "name": "Skeleton patrol",
+        "active": true,
+        "slots": 2,
+        "threat": 3,
+        "score": 5,
+        "min_room_width": 2,
+        "min_room_height": 2,
+        "allowed_roles": [
+          "normal",
+          "boss"
+        ],
+        "required_tags": [
+          "stone"
+        ]
+      }
+    ]
+  }
+}

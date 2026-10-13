@@ -1,0 +1,332 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dungeon-architect:project:1",
+  "title": "Dungeon Architect source project, version 1",
+  "$comment": "The C++ validator additionally enforces byte lengths, integer tokens, cross-field constraints, ID uniqueness, checked totals, file size, nesting, and duplicate-key rejection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "engine_version",
+    "source"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "engine_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "settings",
+        "allowed_mask",
+        "rooms",
+        "packs"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+        },
+        "settings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "columns",
+            "rows",
+            "room_count",
+            "room_width",
+            "room_height",
+            "margin",
+            "corridor_width",
+            "seed",
+            "max_generation_attempts",
+            "max_work_units",
+            "max_time_ms",
+            "threat_budget"
+          ],
+          "properties": {
+            "columns": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 512
+            },
+            "rows": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 512
+            },
+            "room_count": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 262144
+            },
+            "room_width": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 512
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "room_height": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 512
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "margin": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 512
+            },
+            "corridor_width": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 512
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "max_generation_attempts": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9223372036854775807
+            },
+            "max_work_units": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9223372036854775807
+            },
+            "max_time_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9223372036854775807
+            },
+            "threat_budget": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9223372036854775807
+            }
+          }
+        },
+        "allowed_mask": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[01]+$",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "maxItems": 512,
+          "minItems": 1
+        },
+        "rooms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "bounds",
+              "role",
+              "tags",
+              "lock_position",
+              "lock_size",
+              "capacity_override"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+              },
+              "bounds": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  },
+                  "y": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  },
+                  "height": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  }
+                }
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "entrance",
+                  "exit",
+                  "boss"
+                ]
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "maxItems": 64,
+                "uniqueItems": true
+              },
+              "lock_position": {
+                "type": "boolean"
+              },
+              "lock_size": {
+                "type": "boolean"
+              },
+              "capacity_override": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 262144
+                  }
+                ]
+              }
+            }
+          },
+          "maxItems": 4096
+        },
+        "packs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "active",
+              "slots",
+              "threat",
+              "score",
+              "min_room_width",
+              "min_room_height",
+              "allowed_roles",
+              "required_tags"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+              },
+              "active": {
+                "type": "boolean"
+              },
+              "slots": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9223372036854775807
+              },
+              "threat": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              "score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              "min_room_width": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "min_room_height": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              },
+              "allowed_roles": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "normal",
+                    "entrance",
+                    "exit",
+                    "boss"
+                  ]
+                },
+                "maxItems": 4,
+                "uniqueItems": true
+              },
+              "required_tags": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "maxItems": 64,
+                "uniqueItems": true
+              }
+            }
+          },
+          "maxItems": 4096
+        }
+      }
+    }
+  }
+}

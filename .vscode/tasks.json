@@ -1,0 +1,28 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Native: Debug build and test",
+      "type": "shell",
+      "command": "powershell",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/build-native.ps1", "-Configuration", "Debug"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "Native: Release build and test",
+      "type": "shell",
+      "command": "powershell",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/tools/build-native.ps1", "-Configuration", "Release"],
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "Flutter: Run Chrome",
+      "type": "shell",
+      "command": "flutter",
+      "args": ["run", "-d", "chrome", "--no-web-resources-cdn"],
+      "options": { "cwd": "${workspaceFolder}/apps/flutter_ui" },
+      "problemMatcher": []
+    }
+  ]
+}

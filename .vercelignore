@@ -1,0 +1,12 @@
+.git
+.tools
+.vscode
+build
+output
+docs/reference
+*.docx
+**/.env*
+**/node_modules
+**/.dart_tool
+**/build
+**/ephemeral

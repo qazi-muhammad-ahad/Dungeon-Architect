@@ -1,0 +1,2 @@
+#pragma once
+#define DA_ENGINE_VERSION "@PROJECT_VERSION@"
