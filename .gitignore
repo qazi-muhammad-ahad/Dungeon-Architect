@@ -41,3 +41,6 @@ Thumbs.db
 # Course handouts and personal documents stay local, outside the public repo.
 /docs/reference/*.pdf
 /*.docx
+# Machine-specific agent coordination stays local.
+/AGENTS.md
+/progression.md

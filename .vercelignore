@@ -5,6 +5,8 @@ build
 output
 docs/reference
 *.docx
+AGENTS.md
+progression.md
 **/.env*
 **/node_modules
 **/.dart_tool
