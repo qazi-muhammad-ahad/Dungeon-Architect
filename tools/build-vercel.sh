@@ -8,14 +8,24 @@ FLUTTER_REVISION=6a19cca56475dbfba1478ee68d7bd0c2ef891da1
 EMSDK_REVISION=35ff8a6d150541276abbc6bae512ca90bcfbe220
 EMSCRIPTEN_VERSION=6.0.12
 mkdir -p .tools
-if [[ ! -x .tools/flutter/bin/flutter ]]; then
-  git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git .tools/flutter
-fi
+# Vercel can restore only part of a tool directory. Recreate its Git metadata
+# and restore the pinned source in place instead of cloning into a nonempty
+# directory or trusting an incomplete cache.
+restore_sdk() {
+  local directory="$1" repository="$2" revision="$3"
+  mkdir -p "$directory"
+  git -C "$directory" init --quiet
+  if git -C "$directory" remote get-url origin >/dev/null 2>&1; then
+    git -C "$directory" remote set-url origin "$repository"
+  else
+    git -C "$directory" remote add origin "$repository"
+  fi
+  git -C "$directory" fetch --quiet --depth 1 origin "$revision"
+  git -C "$directory" checkout --quiet --force --detach "$revision"
+}
+restore_sdk .tools/flutter https://github.com/flutter/flutter.git "$FLUTTER_REVISION"
 [[ "$(git -C .tools/flutter rev-parse HEAD)" == "$FLUTTER_REVISION" ]] || { echo 'Unexpected Flutter revision'; exit 1; }
-if [[ ! -f .tools/emsdk/emsdk.py ]]; then
-  git clone https://github.com/emscripten-core/emsdk.git .tools/emsdk
-  git -C .tools/emsdk checkout "$EMSDK_REVISION"
-fi
+restore_sdk .tools/emsdk https://github.com/emscripten-core/emsdk.git "$EMSDK_REVISION"
 [[ "$(git -C .tools/emsdk rev-parse HEAD)" == "$EMSDK_REVISION" ]] || { echo 'Unexpected Emsdk revision'; exit 1; }
 python3 .tools/emsdk/emsdk.py install "$EMSCRIPTEN_VERSION"
 python3 .tools/emsdk/emsdk.py activate "$EMSCRIPTEN_VERSION"
