@@ -1,5 +1,8 @@
 # Public browser deployment
 
+Live app: https://dungeon-architet.vercel.app
+Repository: https://github.com/qazi-muhammad-ahad/Dungeon-Architect
+
 The browser app uses the same C++ algorithms as the CLI, compiled to WebAssembly.
 Vercel serves static files only. No server functions, API endpoints, database,
 account system, or runtime environment variables are required.
@@ -35,15 +38,18 @@ production security headers, so it catches CSP regressions in Flutter and Wasm.
 The editor uses in-page navigation; missing files and `/api/*` should return 404,
 not an SPA fallback. Test Generate & solve, cancellation, and local file saving.
 
-GitHub Actions independently builds and tests the native engine and the complete
-Linux web build. Workflow permissions are read-only and external actions are
-pinned to commits.
+`docs/github-actions-ci.yml` is an optional GitHub Actions workflow template for
+building and testing the native engine and complete Linux web build. It is not
+active: the current GitHub OAuth permission does not allow publishing workflows.
+An owner can move it to `.github/workflows/ci.yml` after approving that permission.
+The template uses read-only job permissions and pins external actions to commits.
 
 ## Firewall
 
 Vercel applies platform DDoS mitigation automatically. A project-level fixed-window
-rate limit should allow 600 requests per 60 seconds per IP for all paths and return
-429 above the limit. This accommodates the app's asset downloads and shared
+rate limit is published and allows 600 requests per 60 seconds per IP for all paths and returns
+429 above the limit. Confirmed active on 2026-10-13, with no pending drafts.
+This accommodates the app's asset downloads and shared
 classroom networks; generation itself makes no network requests. Counters are
 regional, and distributed sources can exceed any single-IP limit.
 

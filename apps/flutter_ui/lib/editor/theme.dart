@@ -49,6 +49,7 @@ ThemeData editorTheme({bool dark = false}) {
       error: dark ? Color(0xFFF0A3A3) : Color(0xFFA44242),
     ),
     fontFamily: 'Segoe UI',
+    fontFamilyFallback: const ['NotoSansSymbols2'],
     visualDensity: VisualDensity.compact,
     textTheme: TextTheme(
       bodyMedium: TextStyle(fontSize: 13, color: ink),
