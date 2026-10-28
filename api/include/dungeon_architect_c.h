@@ -50,6 +50,7 @@ typedef uint32_t da_status;
 #define DA_EDIT 8u
 #define DA_REALLOCATE 9u
 #define DA_GENERATE_DUNGEON 10u
+#define DA_SCENARIO 11u
 /* REALLOCATE requires this context's retained routed layout and unchanged
  * geometry dependencies. Returns a pipeline report without regenerating.
  * GENERATE_DUNGEON returns a pipeline report with geometry and no allocation. */

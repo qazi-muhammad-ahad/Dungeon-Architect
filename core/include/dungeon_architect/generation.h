@@ -1,4 +1,5 @@
 #pragma once
+#include "dungeon_architect/instrumentation.h"
 #include "dungeon_architect/geometry.h"
 #include <functional>
 
@@ -37,6 +38,8 @@ struct GenerationEvent {
     std::int32_t cut = 0, first_child_rooms = 0;
 };
 struct GenerationMetrics {
+    TimingMap timings_us;
+    double trace_us = 0;
     std::int64_t work_units = 0, attempts = 0, rejected_candidates = 0, backtracks = 0;
     std::uint64_t dropped_events = 0;
 };

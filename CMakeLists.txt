@@ -95,6 +95,13 @@ if(BUILD_TESTING)
     "${CMAKE_CURRENT_SOURCE_DIR}/datasets/pipeline/teaching.json"
     "${CMAKE_CURRENT_SOURCE_DIR}/datasets/allocation/standard-14.json")
   set_tests_properties(api.contract PROPERTIES TIMEOUT 30)
+  add_executable(dungeon_scenario_play_test tests/core/scenario_play_test.cpp)
+  target_link_libraries(dungeon_scenario_play_test PRIVATE dungeon_api dungeon_result_io)
+  da_warnings(dungeon_scenario_play_test)
+  add_test(NAME core.scenario_play COMMAND dungeon_scenario_play_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/datasets/pipeline/teaching.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/datasets/pipeline/irregular-fortress.json")
+  set_tests_properties(core.scenario_play PROPERTIES TIMEOUT 30)
   add_test(NAME api.cli_parity COMMAND "${CMAKE_COMMAND}"
     "-DCLI=$<TARGET_FILE:dungeon_cli>" "-DCALLER=$<TARGET_FILE:dungeon_api_caller>"
     "-DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/datasets/pipeline/teaching.json"

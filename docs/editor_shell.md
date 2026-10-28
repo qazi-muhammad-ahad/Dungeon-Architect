@@ -104,3 +104,11 @@ invalid edits, replacement locking and int64 transport. Widget tests cover
 navigation, selection retention, compact widths and high-DPI sizing. The separate
 50-check `tests/web/browser_test.cjs` verifies the engine/Dart boundary against
 the native CLI; native Debug/Release builds run all 18 CTest suites.
+
+## Analyze playback and benchmarks
+
+Analyze now includes bounded real-event playback, linked BSP/map diagnostics, a
+tiny-state DP inspector, native metrics and isolated reproducible benchmark
+batches. See [Analyze and benchmarks](analyze_benchmarks.md) for controls, limits,
+measurement domains and recorded target-workload evidence. Play remains a map
+preview; exploration controls are a later phase.

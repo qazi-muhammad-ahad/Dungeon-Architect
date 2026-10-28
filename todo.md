@@ -1,7 +1,7 @@
 # Dungeon Architect - App Implementation TODO
 
 Created: 2026-10-10
-Status: Phases 00-11 complete under the approved Chrome-first scope (2026-10-25). Native Dart FFI/mobile/Windows app packaging remain deferred.
+Status: Phases 00-15 complete under the approved Chrome-first scope (2026-10-28). Native Dart FFI/mobile/Windows app packaging remain deferred.
 Scope: Application engineering only. Product decisions are recorded in [plan.md](plan.md).
 
 ## How to use this backlog
@@ -286,78 +286,82 @@ Evidence (2026-10-25): runtime generation inputs, validated room previews/locks/
 
 Dependencies: Phase 11 and native trace events.
 
-- [ ] P12.01 Define common event metadata: run ID, input revision, sequence, stage, affected IDs, and payload schema.
-- [ ] P12.02 Add overlay toggles for mask, partition bounds, room IDs, capacities, doors, connectivity, and assignments.
-- [ ] P12.03 Render the BSP tree with selection linked to the matching map region.
-- [ ] P12.04 Animate real split/placement/connection events with play, pause, step, restart, and speed controls.
-- [ ] P12.05 Show fixed rooms as preserved features rather than misrepresenting them as generated leaves.
-- [ ] P12.06 Display allocation summaries and animate actual reconstructed pack-to-room decisions.
-- [ ] P12.07 Provide a small-state DP inspector showing masks, candidate subsets, and feasible transitions.
-- [ ] P12.08 Use compact summaries for full-size runs; visibly label sampled or truncated traces.
-- [ ] P12.09 Bound event queues, playback memory, and retained snapshots; define checkpoint/replay behavior.
-- [ ] P12.10 Ensure animation speed, pause, or trace sampling cannot change algorithm output.
-- [ ] P12.11 Display exact, cancelled, unsupported, and search-limited statuses without misleading optimality labels.
-- [ ] P12.12 Test traces from cancelled/stale jobs and switching views during playback.
+- [x] P12.01 Define common event metadata: run ID, input revision, sequence, stage, affected IDs, and payload schema.
+- [x] P12.02 Add overlay toggles for mask, partition bounds, room IDs, capacities, doors, connectivity, and assignments.
+- [x] P12.03 Render the BSP tree with selection linked to the matching map region.
+- [x] P12.04 Animate real split/placement/connection events with play, pause, step, restart, and speed controls.
+- [x] P12.05 Show fixed rooms as preserved features rather than misrepresenting them as generated leaves.
+- [x] P12.06 Display allocation summaries and animate actual reconstructed pack-to-room decisions.
+- [x] P12.07 Provide a small-state DP inspector showing masks, candidate subsets, and feasible transitions.
+- [x] P12.08 Use compact summaries for full-size runs; visibly label sampled or truncated traces.
+- [x] P12.09 Bound event queues, playback memory, and retained snapshots; define checkpoint/replay behavior.
+- [x] P12.10 Ensure animation speed, pause, or trace sampling cannot change algorithm output.
+- [x] P12.11 Display exact, cancelled, unsupported, and search-limited statuses without misleading optimality labels.
+- [x] P12.12 Test traces from cancelled/stale jobs and switching views during playback.
 
 Exit checks:
-- [ ] Users can inspect what the engine actually did without cluttering the normal dungeon view or freezing large runs.
+- [x] Users can inspect what the engine actually did without cluttering the normal dungeon view or freezing large runs.
 
 ## Phase 13 - Add performance metrics and benchmark charts
 
 Dependencies: Phases 07 and 12.
 
-- [ ] P13.01 Instrument generation stages, routing, subset preprocessing, DP, reconstruction, and serialization separately.
-- [ ] P13.02 Track relevant operation counts, retries, explored states, and estimated/observed state storage with accurate labels.
-- [ ] P13.03 Separate algorithm timing from tracing, serialization, UI rendering, and playback.
-- [ ] P13.04 Add configurable benchmark batches varying tile area, room count, and active pack count independently.
-- [ ] P13.05 Use fixed fixture seeds and record engine version, parameters, build mode, and environment metadata.
-- [ ] P13.06 Perform repeated runs and show median/spread rather than one unqualified timing.
-- [ ] P13.07 Add charts and raw-result inspection/export inside Analyze.
-- [ ] P13.08 Add cancellation, progress, workload preview, and history limits for benchmark jobs.
-- [ ] P13.09 Measure the target 10-20 room, 12-14 pack workloads before finalizing published limits.
-- [ ] P13.10 Optimize only demonstrated bottlenecks and recheck correctness after changes.
-- [ ] P13.11 Use results to validate memory/work limits and responsive cancellation targets.
+- [x] P13.01 Instrument generation stages, routing, subset preprocessing, DP, reconstruction, and serialization separately.
+- [x] P13.02 Track relevant operation counts, retries, explored states, and estimated/observed state storage with accurate labels.
+- [x] P13.03 Separate algorithm timing from tracing, serialization, UI rendering, and playback.
+- [x] P13.04 Add configurable benchmark batches varying tile area, room count, and active pack count independently.
+- [x] P13.05 Use fixed fixture seeds and record engine version, parameters, build mode, and environment metadata.
+- [x] P13.06 Perform repeated runs and show median/spread rather than one unqualified timing.
+- [x] P13.07 Add charts and raw-result inspection/export inside Analyze.
+- [x] P13.08 Add cancellation, progress, workload preview, and history limits for benchmark jobs.
+- [x] P13.09 Measure the target 10-20 room, 12-14 pack workloads before finalizing published limits.
+- [x] P13.10 Optimize only demonstrated bottlenecks and recheck correctness after changes.
+- [x] P13.11 Use results to validate memory/work limits and responsive cancellation targets.
 
 Exit checks:
-- [ ] Charts show reproducible engine measurements, and advertised limits are supported by measured runs.
+- [x] Charts show reproducible engine measurements, and advertised limits are supported by measured runs.
+
+Evidence (2026-10-28): real versioned/bounded traces, linked BSP/map diagnostics, immutable playback and tiny DP candidate inspection; separate labeled engine timers/counters/logical table storage; isolated bounded benchmark batches, median/range charts and JSON export implemented. Native18/18 suites plus final fixed-feature regression passed; Flutter38/38, analyzer, Wasm/CSP release builds and artifact checks passed. Real Chrome engine and full Analyze/playback/benchmark/export workflow passed; screenshot inspected. Measured36native and27Wasm fixed-seed target/area runs with deterministic repeated outputs; raw fixtures/results and timing limitations in [Analyze and benchmarks](docs/analyze_benchmarks.md). No algorithm optimization was justified by these measurements; exact BSP/DP and existing guards remain unchanged.
 
 ## Phase 14 - Add failure simulation and result comparisons
 
 Dependencies: Phase 12; metrics comparison uses Phase 13.
 
-- [ ] P14.01 Allow selected corridor sections to be temporarily blocked without altering the saved baseline.
-- [ ] P14.02 Recompute actual walkability and highlight rooms/exit disconnected from the entrance.
-- [ ] P14.03 Rerun allocation using the changed reachable-room set.
-- [ ] P14.04 Add temporary room-disable and capacity/budget-change scenarios using explicit controls.
-- [ ] P14.05 Show before/after reachable rooms, selected packs, score, threat use, and timings.
-- [ ] P14.06 Provide restore-baseline/reset-scenario behavior without losing original inputs.
-- [ ] P14.07 Mark old assignments stale immediately after connectivity changes.
-- [ ] P14.08 Handle all rooms disconnected, sealed exit, and zero remaining capacity.
-- [ ] P14.09 Preserve exact-solver status and describe full reruns accurately; do not claim incremental optimization.
-- [ ] P14.10 Test blocked sections intersecting doors or multiple routes, scenario reset, and save/load semantics.
+- [x] P14.01 Allow selected corridor sections to be temporarily blocked without altering the saved baseline.
+- [x] P14.02 Recompute actual walkability and highlight rooms/exit disconnected from the entrance.
+- [x] P14.03 Rerun allocation using the changed reachable-room set.
+- [x] P14.04 Add temporary room-disable and capacity/budget-change scenarios using explicit controls.
+- [x] P14.05 Show before/after reachable rooms, selected packs, score, threat use, and timings.
+- [x] P14.06 Provide restore-baseline/reset-scenario behavior without losing original inputs.
+- [x] P14.07 Mark old assignments stale immediately after connectivity changes.
+- [x] P14.08 Handle all rooms disconnected, sealed exit, and zero remaining capacity.
+- [x] P14.09 Preserve exact-solver status and describe full reruns accurately; do not claim incremental optimization.
+- [x] P14.10 Test blocked sections intersecting doors or multiple routes, scenario reset, and save/load semantics.
 
 Exit checks:
-- [ ] Failure scenarios produce valid changed results and can be reversed safely.
+- [x] Failure scenarios produce valid changed results and can be reversed safely.
 
 ## Phase 15 - Implement exploration-only Play mode
 
 Dependencies: Phase 11; share map rendering and valid snapshots with Analyze.
 
-- [ ] P15.01 Define a play session referencing an immutable validated dungeon/assignment snapshot.
-- [ ] P15.02 Place the player at a valid entrance position and expose a restart control.
-- [ ] P15.03 Add WASD/arrow movement and authoritative C++ collision rules.
-- [ ] P15.04 Make movement frame-rate independent and prevent tunnelling through walls at large frame steps.
-- [ ] P15.05 Add camera follow and a clear exit marker.
-- [ ] P15.06 Render encounter actors as static nonblocking markers from reconstructed assignments.
-- [ ] P15.07 Add nearby-marker interaction displaying pack, room, threat, and score.
-- [ ] P15.08 Add a simple reach-the-exit completion state.
-- [ ] P15.09 Pause/clear held input on focus loss, modal dialogs, or tab changes.
-- [ ] P15.10 Invalidate/restart play after relevant project edits; never mix geometry from different revisions.
-- [ ] P15.11 Explain disconnected exits before starting affected scenarios.
-- [ ] P15.12 Test walls, narrow corridors, doors, map edges, restart, focus loss, and repeated view switching.
+- [x] P15.01 Define a play session referencing an immutable validated dungeon/assignment snapshot.
+- [x] P15.02 Place the player at a valid entrance position and expose a restart control.
+- [x] P15.03 Add WASD/arrow movement and authoritative C++ collision rules.
+- [x] P15.04 Make movement frame-rate independent and prevent tunnelling through walls at large frame steps.
+- [x] P15.05 Add camera follow and a clear exit marker.
+- [x] P15.06 Render encounter actors as static nonblocking markers from reconstructed assignments.
+- [x] P15.07 Add nearby-marker interaction displaying pack, room, threat, and score.
+- [x] P15.08 Add a simple reach-the-exit completion state.
+- [x] P15.09 Pause/clear held input on focus loss, modal dialogs, or tab changes.
+- [x] P15.10 Invalidate/restart play after relevant project edits; never mix geometry from different revisions.
+- [x] P15.11 Explain disconnected exits before starting affected scenarios.
+- [x] P15.12 Test walls, narrow corridors, doors, map edges, restart, focus loss, and repeated view switching.
 
 Exit checks:
-- [ ] Users can explore exactly the generated dungeon and inspect its assigned encounters without additional combat systems.
+- [x] Users can explore exactly the generated dungeon and inspect its assigned encounters without additional combat systems.
+
+Evidence (2026-10-28): native temporary floor/scenario snapshots preserve baseline/source, independently checked BFS and exact full allocation reruns; room disable/capacity/budget controls, stale/reset comparisons and sealed-exit guidance. Exploration uses immutable job/revision-bound snapshots, serialized native cardinal collision at fixed rate, bounded elapsed accumulation, camera follow, nonblocking actors/inspection, exit completion and pause/invalidation safety. Native19/19, Flutter49/49, clean analyzer, Wasm/CSP release and artifact checks pass. Real Chrome validates wall/door/actor/exit/restart/modal/focus/view/scenario/save/reopen/edit flows; final screenshot inspected. See [scenarios and Play](docs/scenarios_play.md).
 
 ## Phase 16 - Visual polish, usability, and robustness
 

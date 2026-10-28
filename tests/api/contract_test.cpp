@@ -65,16 +65,35 @@ int main(int argc, char** argv) {
         CHECK(da_job_read(j,DA_REPORT,nullptr,0,nullptr) == DA_INVALID_ARGUMENT);
         CHECK(da_job_read(j,42,nullptr,0,&n) == DA_INVALID_ARGUMENT);
         auto metrics = Json::parse(read([&](uint8_t* p,uint32_t cap,uint32_t* len){return da_job_read(j,DA_METRICS,p,cap,len);}));
-        CHECK(metrics.contains("allocation")); CHECK(metrics.contains("walkable_geometry"));
+        CHECK(metrics.contains("allocation")); CHECK(metrics.contains("routing"));
         uint32_t cursor = 0; std::size_t count = 0;
         do {
             auto batch = Json::parse(read([&](uint8_t* p,uint32_t cap,uint32_t* len){return da_job_trace(j,cursor,7,p,cap,len);}));
             CHECK(batch["events"].size() <= 7);
-            for (const auto& event : batch["events"]) CHECK(event["sequence"] == count++);
+            CHECK(batch["schema_version"] == 1);
+            CHECK(batch["run_id"] == j);
+            for (const auto& event : batch["events"]) {
+                CHECK(event["sequence"] == count++);
+                CHECK(event["schema_version"] == 1 && event["run_id"] == j);
+                CHECK(event["input_revision"].is_string());
+                CHECK(event["input_revision"].get<std::string>().find("fnv1a32-") == 0);
+                CHECK(event["input_revision"] == batch["input_revision"]);
+                CHECK(event["stage"] == "generation" || event["stage"] == "routing" || event["stage"] == "allocation");
+                CHECK(event["affected_ids"].is_array());
+                CHECK(event["event"].contains("kind"));
+                for (const auto& id : event["affected_ids"]) CHECK(id.is_string() && !id.get<std::string>().empty());
+            }
             cursor = batch["next_cursor"];
             if (cursor == batch["total"]) break;
         } while (true);
         CHECK(count > 0 && count <= 48);
+        CHECK(metrics.contains("generation") && metrics.contains("routing") && !metrics.contains("walkable_geometry"));
+        for (const auto* name : {"generation","routing","allocation"}) {
+            CHECK(metrics[name]["timing_domain"] == "steady_clock_wall_including_validation_and_cooperative_yields");
+            CHECK(metrics[name]["timings_us"].is_object());
+            for (const auto& value : metrics[name]["timings_us"]) CHECK(value.is_number() && value.get<double>() >= 0);
+            CHECK(metrics[name]["trace_us"].is_number() && metrics[name]["trace_us"].get<double>() >= 0);
+        }
         CHECK(da_job_trace(j,0,129,nullptr,0,&n) == DA_INVALID_ARGUMENT);
         CHECK(da_job_trace(j,99999,1,nullptr,0,&n) == DA_INVALID_ARGUMENT);
         const auto& marker = doc["result"]["geometry"]["entrance_marker"];
@@ -284,6 +303,23 @@ int main(int argc, char** argv) {
         CHECK(reallocate(phase11)["outcome"]=="unsupported_size");
         for(auto& p:phase11.packs) if(p.id.find("inventory-copy-")==0) p.active=false;
         CHECK(reallocate(phase11)["outcome"]=="success");
+        // A benchmark context may publish its own result without touching editor movement/export state.
+        const auto retained = read([&](uint8_t* p,uint32_t cap,uint32_t* len){return da_context_read(c,p,cap,len);});
+        da_context benchmark = 0; CHECK(da_context_create(1,1,&benchmark) == DA_OK);
+        for (const uint32_t cap : {0U,1U,4096U}) {
+            da_job measured = 0;
+            CHECK(da_job_create(benchmark,DA_RUN,ptr,static_cast<uint32_t>(source.size()),cap,DA_DETAILED_TRACE,&measured) == DA_OK);
+            CHECK(da_job_execute(measured) == DA_OK);
+            const auto measuredDoc = Json::parse(report(measured));
+            CHECK(measuredDoc["outcome"] == "success");
+            CHECK(measuredDoc["result"] == doc["result"]);
+            const auto batch = Json::parse(read([&](uint8_t* p,uint32_t size,uint32_t* len){return da_job_trace(measured,0,128,p,size,len);}));
+            CHECK(batch["total"].get<std::size_t>() <= 4096);
+            if (cap == 0) CHECK(batch["events"].empty() && batch["truncated"] == true);
+            CHECK(da_job_release(measured) == DA_OK);
+            CHECK(read([&](uint8_t* p,uint32_t size,uint32_t* len){return da_context_read(c,p,size,len);}) == retained);
+        }
+        CHECK(da_context_release(benchmark) == DA_OK);
         CHECK(da_context_release(c) == DA_OK); CHECK(da_context_release(c) == DA_INVALID_HANDLE);
         for (int i = 0; i < 40; ++i) {
             CHECK(da_context_create(1,1,&c) == DA_OK); j = create(c,source,DA_VALIDATE);

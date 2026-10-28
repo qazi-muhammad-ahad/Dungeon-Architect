@@ -13,6 +13,13 @@
     }));
   }
   class DungeonEngineClient {
+    static get environmentJson() {
+      return JSON.stringify({user_agent:root.navigator?.userAgent ?? 'unknown',
+        platform:root.navigator?.platform ?? 'unknown',logical_processors:root.navigator?.hardwareConcurrency ?? null,
+        reported_device_memory_gib:root.navigator?.deviceMemory ?? null,
+        memory_note:'Browser-reported coarse device memory; not engine resident memory',
+        language:root.navigator?.language ?? 'unknown'});
+    }
     constructor(options = {}) {
       this.closed = false; this.closing = false; this.next = 1; this.pending = new Map();
       this.lastResult = null; this.snapshotJob = 0; this.progressJson = '{"state":0,"stage":0,"outcome":0}';
@@ -49,14 +56,14 @@
     async run(project,operation = 5,events = 256,flags = 0) {
       if (this.closed || this.closing) throw Object.assign(new Error('Engine is closed.'),{code:'closed'});
       if (this.running) throw Object.assign(new Error('An engine job is already running.'),{code:'busy'});
-      if (![operation,events,flags].every(Number.isInteger) || operation < 1 || operation > 10 || events < 0 || events > 4096 || flags < 0 || flags > 1)
+      if (![operation,events,flags].every(Number.isInteger) || operation < 1 || operation > 11 || events < 0 || events > 4096 || flags < 0 || flags > 1)
         throw Object.assign(new Error('Invalid operation, event limit or flags.'),{code:'invalid_argument'});
       this.running = (async () => {
         await this.ready;
         if (this.closing) throw Object.assign(new Error('Engine is closing.'),{code:'closed'});
         const value = await this.request('run',{project,operation,events,flags});
         if (value.outcome === 0 && ((operation >= 2 && operation <= 5) || operation === 9 || operation === 10)) { this.lastResult = value.report; this.snapshotJob = value.snapshotJob; }
-        return value.report;
+        this.lastJob = value.snapshotJob; return value.report;
       })();
       try { return await this.running; } finally { this.running = null; }
     }

@@ -90,6 +90,15 @@ void locks_and_validation() {
     p.rooms[1].role = da::RoomRole::entrance; p.rooms[1].capacity_override = 0;
     p.rooms[0].tags = {"stone","boss"}; p.rooms[0].role = da::RoomRole::boss;
     auto result = da::generate_rooms(p); CHECK(result.ok()); independent_checks(p,*result.layout);
+    for (const auto& room : p.rooms) {
+        CHECK(std::count_if(result.events.begin(),result.events.end(),[&](const auto& event) {
+            return event.kind == "fixed_reserved" && event.room_id == room.id && event.bounds == room.bounds && event.node == -1;
+        }) == 1);
+        CHECK(std::none_of(result.events.begin(),result.events.end(),[&](const auto& event) {
+            return event.kind == "room_placed" && event.room_id == room.id;
+        }));
+        CHECK(std::none_of(result.layout->partitions.begin(),result.layout->partitions.end(),[&](const auto& node) { return node.room_id == room.id; }));
+    }
     const auto center = std::find_if(result.layout->rooms.begin(),result.layout->rooms.end(),[](const auto& r) { return r.id == "center"; });
     CHECK(center != result.layout->rooms.end() && center->bounds == p.rooms[0].bounds && center->tags == p.rooms[0].tags);
     const auto root = result.layout->partitions.front();

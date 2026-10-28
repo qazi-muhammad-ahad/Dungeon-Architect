@@ -1,0 +1,2117 @@
+{
+  "schema_version": 1,
+  "environment": {
+    "browser": "156.0.8078.73",
+    "host": "local_chrome_headless",
+    "timing_domain": "embedded native stage wall with cooperative yields; bridge wall includes transfer/parse",
+    "fixture": "datasets/allocation/standard-14.json rooms and active prefix varied, fixedseed42, no retries, three repeats"
+  },
+  "records": [
+    {
+      "rooms": 10,
+      "packs": 12,
+      "repeat": 0,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 976.0999999046326,
+      "metrics": {
+        "allocation": {
+          "active_packs": 12,
+          "allocated_table_bytes": 217088,
+          "dropped_events": 20,
+          "eligible_rooms": 9,
+          "estimated_bytes": 217124,
+          "estimated_work": 4832638,
+          "feasible_states": 36864,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 5000,
+            "preprocessing": 3500,
+            "reconstruction": 1800
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 564209,
+          "work_units": 609384
+        },
+        "generation": {
+          "attempts": 72,
+          "backtracks": 0,
+          "dropped_events": 91,
+          "rejected_candidates": 53,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 7000,
+            "preflight": 78300,
+            "search": 1100
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "work_units": 244835
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 964700,
+          "input_revision": "fnv1a32-3452007250",
+          "run_id": 2,
+          "schema_version": 1,
+          "serialization_us": 3700,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 39850,
+          "corridors_routed": 9,
+          "dropped_events": 39896,
+          "floor_visited": 2622,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 42200,
+            "finalization": 3600,
+            "preparation": 75300,
+            "routing": 613200
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 19800,
+          "work_units": 1055750
+        }
+      },
+      "output_hash": "aaf24a5fe7501f058980b26835fdb607de5b004fa3381fc4eca0f432a8d9aec0"
+    },
+    {
+      "rooms": 10,
+      "packs": 12,
+      "repeat": 1,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 915.1999998092651,
+      "metrics": {
+        "allocation": {
+          "active_packs": 12,
+          "allocated_table_bytes": 217088,
+          "dropped_events": 20,
+          "eligible_rooms": 9,
+          "estimated_bytes": 217124,
+          "estimated_work": 4832638,
+          "feasible_states": 36864,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 4600,
+            "preprocessing": 1000,
+            "reconstruction": 1400
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 564209,
+          "work_units": 609384
+        },
+        "generation": {
+          "attempts": 72,
+          "backtracks": 0,
+          "dropped_events": 91,
+          "rejected_candidates": 53,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 4000,
+            "preflight": 51000,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 244835
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 903700,
+          "input_revision": "fnv1a32-3452007250",
+          "run_id": 3,
+          "schema_version": 1,
+          "serialization_us": 4100,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 39850,
+          "corridors_routed": 9,
+          "dropped_events": 39896,
+          "floor_visited": 2622,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 43900,
+            "finalization": 3000,
+            "preparation": 67100,
+            "routing": 637500
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 19100,
+          "work_units": 1055750
+        }
+      },
+      "output_hash": "aaf24a5fe7501f058980b26835fdb607de5b004fa3381fc4eca0f432a8d9aec0"
+    },
+    {
+      "rooms": 10,
+      "packs": 12,
+      "repeat": 2,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1921.7999999523163,
+      "metrics": {
+        "allocation": {
+          "active_packs": 12,
+          "allocated_table_bytes": 217088,
+          "dropped_events": 20,
+          "eligible_rooms": 9,
+          "estimated_bytes": 217124,
+          "estimated_work": 4832638,
+          "feasible_states": 36864,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 4000,
+            "preprocessing": 1000,
+            "reconstruction": 1000
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "transitions": 564209,
+          "work_units": 609384
+        },
+        "generation": {
+          "attempts": 72,
+          "backtracks": 0,
+          "dropped_events": 91,
+          "rejected_candidates": 53,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 5500,
+            "preflight": 68800,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 300,
+          "work_units": 244835
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1914800,
+          "input_revision": "fnv1a32-3452007250",
+          "run_id": 4,
+          "schema_version": 1,
+          "serialization_us": 2700,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 39850,
+          "corridors_routed": 9,
+          "dropped_events": 39896,
+          "floor_visited": 2622,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 39400,
+            "finalization": 2300,
+            "preparation": 646100,
+            "routing": 1071600
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 18600,
+          "work_units": 1055750
+        }
+      },
+      "output_hash": "aaf24a5fe7501f058980b26835fdb607de5b004fa3381fc4eca0f432a8d9aec0"
+    },
+    {
+      "rooms": 10,
+      "packs": 13,
+      "repeat": 0,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 874.2000000476837,
+      "metrics": {
+        "allocation": {
+          "active_packs": 13,
+          "allocated_table_bytes": 434176,
+          "dropped_events": 20,
+          "eligible_rooms": 9,
+          "estimated_bytes": 434212,
+          "estimated_work": 14447738,
+          "feasible_states": 73728,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 16600,
+            "preprocessing": 1300,
+            "reconstruction": 800
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 1659859,
+          "work_units": 1750099
+        },
+        "generation": {
+          "attempts": 72,
+          "backtracks": 0,
+          "dropped_events": 91,
+          "rejected_candidates": 53,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 4100,
+            "preflight": 51100,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 244835
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 867500,
+          "input_revision": "fnv1a32-1086198590",
+          "run_id": 5,
+          "schema_version": 1,
+          "serialization_us": 2700,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 39850,
+          "corridors_routed": 9,
+          "dropped_events": 39896,
+          "floor_visited": 2622,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 40800,
+            "finalization": 2400,
+            "preparation": 48200,
+            "routing": 632100
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 18600,
+          "work_units": 1055750
+        }
+      },
+      "output_hash": "e6b0b5babb046fc4179679b91ac44edd4066eda7397b834b09a5ac0db87a7637"
+    },
+    {
+      "rooms": 10,
+      "packs": 13,
+      "repeat": 1,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 869.7999999523163,
+      "metrics": {
+        "allocation": {
+          "active_packs": 13,
+          "allocated_table_bytes": 434176,
+          "dropped_events": 20,
+          "eligible_rooms": 9,
+          "estimated_bytes": 434212,
+          "estimated_work": 14447738,
+          "feasible_states": 73728,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 11500,
+            "preprocessing": 1300,
+            "reconstruction": 4900
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 1659859,
+          "work_units": 1750099
+        },
+        "generation": {
+          "attempts": 72,
+          "backtracks": 0,
+          "dropped_events": 91,
+          "rejected_candidates": 53,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 3800,
+            "preflight": 48400,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "work_units": 244835
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 863500,
+          "input_revision": "fnv1a32-1086198590",
+          "run_id": 6,
+          "schema_version": 1,
+          "serialization_us": 2700,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 39850,
+          "corridors_routed": 9,
+          "dropped_events": 39896,
+          "floor_visited": 2622,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 35900,
+            "finalization": 6600,
+            "preparation": 48000,
+            "routing": 633600
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 17000,
+          "work_units": 1055750
+        }
+      },
+      "output_hash": "e6b0b5babb046fc4179679b91ac44edd4066eda7397b834b09a5ac0db87a7637"
+    },
+    {
+      "rooms": 10,
+      "packs": 13,
+      "repeat": 2,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 857.0999999046326,
+      "metrics": {
+        "allocation": {
+          "active_packs": 13,
+          "allocated_table_bytes": 434176,
+          "dropped_events": 20,
+          "eligible_rooms": 9,
+          "estimated_bytes": 434212,
+          "estimated_work": 14447738,
+          "feasible_states": 73728,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 18200,
+            "preprocessing": 1200,
+            "reconstruction": 700
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 1659859,
+          "work_units": 1750099
+        },
+        "generation": {
+          "attempts": 72,
+          "backtracks": 0,
+          "dropped_events": 91,
+          "rejected_candidates": 53,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 3700,
+            "preflight": 47200,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 244835
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 850900,
+          "input_revision": "fnv1a32-1086198590",
+          "run_id": 7,
+          "schema_version": 1,
+          "serialization_us": 2700,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 39850,
+          "corridors_routed": 9,
+          "dropped_events": 39896,
+          "floor_visited": 2622,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 40300,
+            "finalization": 2600,
+            "preparation": 48300,
+            "routing": 618300
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 18500,
+          "work_units": 1055750
+        }
+      },
+      "output_hash": "e6b0b5babb046fc4179679b91ac44edd4066eda7397b834b09a5ac0db87a7637"
+    },
+    {
+      "rooms": 10,
+      "packs": 14,
+      "repeat": 0,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 878.8000001907349,
+      "metrics": {
+        "allocation": {
+          "active_packs": 14,
+          "allocated_table_bytes": 868352,
+          "dropped_events": 20,
+          "eligible_rooms": 9,
+          "estimated_bytes": 868388,
+          "estimated_work": 43243866,
+          "feasible_states": 147456,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 46400,
+            "preprocessing": 1800,
+            "reconstruction": 800
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 4914041,
+          "work_units": 5094410
+        },
+        "generation": {
+          "attempts": 72,
+          "backtracks": 0,
+          "dropped_events": 91,
+          "rejected_candidates": 53,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 3800,
+            "preflight": 48300,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "work_units": 244835
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 872600,
+          "input_revision": "fnv1a32-1131220345",
+          "run_id": 8,
+          "schema_version": 1,
+          "serialization_us": 2500,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 39850,
+          "corridors_routed": 9,
+          "dropped_events": 39896,
+          "floor_visited": 2622,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 39400,
+            "finalization": 2300,
+            "preparation": 47900,
+            "routing": 612800
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 19300,
+          "work_units": 1055750
+        }
+      },
+      "output_hash": "2d7735542249e30161831973ad1269621dff7edfdf3c4ad3028012cdd175ef51"
+    },
+    {
+      "rooms": 10,
+      "packs": 14,
+      "repeat": 1,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 912.1000001430511,
+      "metrics": {
+        "allocation": {
+          "active_packs": 14,
+          "allocated_table_bytes": 868352,
+          "dropped_events": 20,
+          "eligible_rooms": 9,
+          "estimated_bytes": 868388,
+          "estimated_work": 43243866,
+          "feasible_states": 147456,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 44000,
+            "preprocessing": 1800,
+            "reconstruction": 1000
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 4914041,
+          "work_units": 5094410
+        },
+        "generation": {
+          "attempts": 72,
+          "backtracks": 0,
+          "dropped_events": 91,
+          "rejected_candidates": 53,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 4100,
+            "preflight": 47400,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "work_units": 244835
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 906300,
+          "input_revision": "fnv1a32-1131220345",
+          "run_id": 9,
+          "schema_version": 1,
+          "serialization_us": 2500,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 39850,
+          "corridors_routed": 9,
+          "dropped_events": 39896,
+          "floor_visited": 2622,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 41300,
+            "finalization": 2100,
+            "preparation": 61100,
+            "routing": 629600
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 18400,
+          "work_units": 1055750
+        }
+      },
+      "output_hash": "2d7735542249e30161831973ad1269621dff7edfdf3c4ad3028012cdd175ef51"
+    },
+    {
+      "rooms": 10,
+      "packs": 14,
+      "repeat": 2,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 889.6000001430511,
+      "metrics": {
+        "allocation": {
+          "active_packs": 14,
+          "allocated_table_bytes": 868352,
+          "dropped_events": 20,
+          "eligible_rooms": 9,
+          "estimated_bytes": 868388,
+          "estimated_work": 43243866,
+          "feasible_states": 147456,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 43300,
+            "preprocessing": 1700,
+            "reconstruction": 800
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 4914041,
+          "work_units": 5094410
+        },
+        "generation": {
+          "attempts": 72,
+          "backtracks": 0,
+          "dropped_events": 91,
+          "rejected_candidates": 53,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 3600,
+            "preflight": 48200,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 244835
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 882700,
+          "input_revision": "fnv1a32-1131220345",
+          "run_id": 10,
+          "schema_version": 1,
+          "serialization_us": 3000,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 39850,
+          "corridors_routed": 9,
+          "dropped_events": 39896,
+          "floor_visited": 2622,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 38900,
+            "finalization": 2100,
+            "preparation": 49100,
+            "routing": 624900
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 18000,
+          "work_units": 1055750
+        }
+      },
+      "output_hash": "2d7735542249e30161831973ad1269621dff7edfdf3c4ad3028012cdd175ef51"
+    },
+    {
+      "rooms": 16,
+      "packs": 12,
+      "repeat": 0,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1232.9000000953674,
+      "metrics": {
+        "allocation": {
+          "active_packs": 12,
+          "allocated_table_bytes": 290816,
+          "dropped_events": 32,
+          "eligible_rooms": 15,
+          "estimated_bytes": 290876,
+          "estimated_work": 8046226,
+          "feasible_states": 61203,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 4000,
+            "preprocessing": 1300,
+            "reconstruction": 1400
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 589297,
+          "work_units": 659120
+        },
+        "generation": {
+          "attempts": 31,
+          "backtracks": 0,
+          "dropped_events": 62,
+          "rejected_candidates": 0,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 5400,
+            "preflight": 48300,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 256521
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1225100,
+          "input_revision": "fnv1a32-826213672",
+          "run_id": 11,
+          "schema_version": 1,
+          "serialization_us": 3000,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 56939,
+          "corridors_routed": 15,
+          "dropped_events": 57015,
+          "floor_visited": 4388,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 43200,
+            "finalization": 8800,
+            "preparation": 47500,
+            "routing": 980600
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 24400,
+          "work_units": 1307069
+        }
+      },
+      "output_hash": "f1c35040fc89d33bf0642d4a6ff0d744ad0421c4a6cc7ae7177a1b0e875392b3"
+    },
+    {
+      "rooms": 16,
+      "packs": 12,
+      "repeat": 1,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1217.3999998569489,
+      "metrics": {
+        "allocation": {
+          "active_packs": 12,
+          "allocated_table_bytes": 290816,
+          "dropped_events": 32,
+          "eligible_rooms": 15,
+          "estimated_bytes": 290876,
+          "estimated_work": 8046226,
+          "feasible_states": 61203,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 4400,
+            "preprocessing": 1300,
+            "reconstruction": 1300
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 589297,
+          "work_units": 659120
+        },
+        "generation": {
+          "attempts": 31,
+          "backtracks": 0,
+          "dropped_events": 62,
+          "rejected_candidates": 0,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 5900,
+            "preflight": 48000,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 256521
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1209600,
+          "input_revision": "fnv1a32-826213672",
+          "run_id": 12,
+          "schema_version": 1,
+          "serialization_us": 3300,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 56939,
+          "corridors_routed": 15,
+          "dropped_events": 57015,
+          "floor_visited": 4388,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 43100,
+            "finalization": 3000,
+            "preparation": 48400,
+            "routing": 968900
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 25100,
+          "work_units": 1307069
+        }
+      },
+      "output_hash": "f1c35040fc89d33bf0642d4a6ff0d744ad0421c4a6cc7ae7177a1b0e875392b3"
+    },
+    {
+      "rooms": 16,
+      "packs": 12,
+      "repeat": 2,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1208,
+      "metrics": {
+        "allocation": {
+          "active_packs": 12,
+          "allocated_table_bytes": 290816,
+          "dropped_events": 32,
+          "eligible_rooms": 15,
+          "estimated_bytes": 290876,
+          "estimated_work": 8046226,
+          "feasible_states": 61203,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 4200,
+            "preprocessing": 1300,
+            "reconstruction": 1700
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "transitions": 589297,
+          "work_units": 659120
+        },
+        "generation": {
+          "attempts": 31,
+          "backtracks": 0,
+          "dropped_events": 62,
+          "rejected_candidates": 0,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 7300,
+            "preflight": 47200,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 256521
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1200300,
+          "input_revision": "fnv1a32-826213672",
+          "run_id": 13,
+          "schema_version": 1,
+          "serialization_us": 3100,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 56939,
+          "corridors_routed": 15,
+          "dropped_events": 57015,
+          "floor_visited": 4388,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 44600,
+            "finalization": 3000,
+            "preparation": 48600,
+            "routing": 956000
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 27500,
+          "work_units": 1307069
+        }
+      },
+      "output_hash": "f1c35040fc89d33bf0642d4a6ff0d744ad0421c4a6cc7ae7177a1b0e875392b3"
+    },
+    {
+      "rooms": 16,
+      "packs": 13,
+      "repeat": 0,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1198.0999999046326,
+      "metrics": {
+        "allocation": {
+          "active_packs": 13,
+          "allocated_table_bytes": 581632,
+          "dropped_events": 32,
+          "eligible_rooms": 15,
+          "estimated_bytes": 581692,
+          "estimated_work": 24063200,
+          "feasible_states": 122283,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 17200,
+            "preprocessing": 1600,
+            "reconstruction": 1300
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 1710359,
+          "work_units": 1849829
+        },
+        "generation": {
+          "attempts": 31,
+          "backtracks": 0,
+          "dropped_events": 62,
+          "rejected_candidates": 0,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 5500,
+            "preflight": 46900,
+            "search": 100
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 256521
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1190200,
+          "input_revision": "fnv1a32-4259814636",
+          "run_id": 14,
+          "schema_version": 1,
+          "serialization_us": 3100,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 56939,
+          "corridors_routed": 15,
+          "dropped_events": 57015,
+          "floor_visited": 4388,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 44300,
+            "finalization": 2700,
+            "preparation": 47900,
+            "routing": 936600
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 23800,
+          "work_units": 1307069
+        }
+      },
+      "output_hash": "195792a8f94fe669f7d835bcb11a7c1bf5a4ff1f5830c50bf14412f44219d75c"
+    },
+    {
+      "rooms": 16,
+      "packs": 13,
+      "repeat": 1,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1221.2000000476837,
+      "metrics": {
+        "allocation": {
+          "active_packs": 13,
+          "allocated_table_bytes": 581632,
+          "dropped_events": 32,
+          "eligible_rooms": 15,
+          "estimated_bytes": 581692,
+          "estimated_work": 24063200,
+          "feasible_states": 122283,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 16100,
+            "preprocessing": 1700,
+            "reconstruction": 1200
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 1710359,
+          "work_units": 1849829
+        },
+        "generation": {
+          "attempts": 31,
+          "backtracks": 0,
+          "dropped_events": 62,
+          "rejected_candidates": 0,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 5600,
+            "preflight": 48700,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 256521
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1213300,
+          "input_revision": "fnv1a32-4259814636",
+          "run_id": 15,
+          "schema_version": 1,
+          "serialization_us": 3100,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 56939,
+          "corridors_routed": 15,
+          "dropped_events": 57015,
+          "floor_visited": 4388,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 43200,
+            "finalization": 8400,
+            "preparation": 50200,
+            "routing": 954200
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 24200,
+          "work_units": 1307069
+        }
+      },
+      "output_hash": "195792a8f94fe669f7d835bcb11a7c1bf5a4ff1f5830c50bf14412f44219d75c"
+    },
+    {
+      "rooms": 16,
+      "packs": 13,
+      "repeat": 2,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1312.0999999046326,
+      "metrics": {
+        "allocation": {
+          "active_packs": 13,
+          "allocated_table_bytes": 581632,
+          "dropped_events": 32,
+          "eligible_rooms": 15,
+          "estimated_bytes": 581692,
+          "estimated_work": 24063200,
+          "feasible_states": 122283,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 18800,
+            "preprocessing": 1900,
+            "reconstruction": 1500
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "transitions": 1710359,
+          "work_units": 1849829
+        },
+        "generation": {
+          "attempts": 31,
+          "backtracks": 0,
+          "dropped_events": 62,
+          "rejected_candidates": 0,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 5500,
+            "preflight": 47800,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "work_units": 256521
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1301400,
+          "input_revision": "fnv1a32-4259814636",
+          "run_id": 16,
+          "schema_version": 1,
+          "serialization_us": 3300,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 56939,
+          "corridors_routed": 15,
+          "dropped_events": 57015,
+          "floor_visited": 4388,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 51400,
+            "finalization": 10300,
+            "preparation": 46800,
+            "routing": 1014400
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 30400,
+          "work_units": 1307069
+        }
+      },
+      "output_hash": "195792a8f94fe669f7d835bcb11a7c1bf5a4ff1f5830c50bf14412f44219d75c"
+    },
+    {
+      "rooms": 16,
+      "packs": 14,
+      "repeat": 0,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1339.3000001907349,
+      "metrics": {
+        "allocation": {
+          "active_packs": 14,
+          "allocated_table_bytes": 1163264,
+          "dropped_events": 32,
+          "eligible_rooms": 15,
+          "estimated_bytes": 1163324,
+          "estimated_work": 72040362,
+          "feasible_states": 243917,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 46400,
+            "preprocessing": 3100,
+            "reconstruction": 1300
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "transitions": 5017019,
+          "work_units": 5295776
+        },
+        "generation": {
+          "attempts": 31,
+          "backtracks": 0,
+          "dropped_events": 62,
+          "rejected_candidates": 0,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 6100,
+            "preflight": 60100,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "work_units": 256521
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1328600,
+          "input_revision": "fnv1a32-2658411359",
+          "run_id": 17,
+          "schema_version": 1,
+          "serialization_us": 4000,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 56939,
+          "corridors_routed": 15,
+          "dropped_events": 57015,
+          "floor_visited": 4388,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 45100,
+            "finalization": 2900,
+            "preparation": 62800,
+            "routing": 1004900
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 27600,
+          "work_units": 1307069
+        }
+      },
+      "output_hash": "50fba8d82c1b27e886d73526c60fad59023f6dc77dcf6121073590cbbfeb0220"
+    },
+    {
+      "rooms": 16,
+      "packs": 14,
+      "repeat": 1,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1310.5999999046326,
+      "metrics": {
+        "allocation": {
+          "active_packs": 14,
+          "allocated_table_bytes": 1163264,
+          "dropped_events": 32,
+          "eligible_rooms": 15,
+          "estimated_bytes": 1163324,
+          "estimated_work": 72040362,
+          "feasible_states": 243917,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 47900,
+            "preprocessing": 2600,
+            "reconstruction": 1300
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "transitions": 5017019,
+          "work_units": 5295776
+        },
+        "generation": {
+          "attempts": 31,
+          "backtracks": 0,
+          "dropped_events": 62,
+          "rejected_candidates": 0,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 5800,
+            "preflight": 58700,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 256521
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1301700,
+          "input_revision": "fnv1a32-2658411359",
+          "run_id": 18,
+          "schema_version": 1,
+          "serialization_us": 3300,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 56939,
+          "corridors_routed": 15,
+          "dropped_events": 57015,
+          "floor_visited": 4388,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 43800,
+            "finalization": 2700,
+            "preparation": 52600,
+            "routing": 1002700
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 24300,
+          "work_units": 1307069
+        }
+      },
+      "output_hash": "50fba8d82c1b27e886d73526c60fad59023f6dc77dcf6121073590cbbfeb0220"
+    },
+    {
+      "rooms": 16,
+      "packs": 14,
+      "repeat": 2,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1256.3999998569489,
+      "metrics": {
+        "allocation": {
+          "active_packs": 14,
+          "allocated_table_bytes": 1163264,
+          "dropped_events": 32,
+          "eligible_rooms": 15,
+          "estimated_bytes": 1163324,
+          "estimated_work": 72040362,
+          "feasible_states": 243917,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 45200,
+            "preprocessing": 2900,
+            "reconstruction": 1200
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 5017019,
+          "work_units": 5295776
+        },
+        "generation": {
+          "attempts": 31,
+          "backtracks": 0,
+          "dropped_events": 62,
+          "rejected_candidates": 0,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 5500,
+            "preflight": 47300,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "work_units": 256521
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1247300,
+          "input_revision": "fnv1a32-2658411359",
+          "run_id": 19,
+          "schema_version": 1,
+          "serialization_us": 3200,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 56939,
+          "corridors_routed": 15,
+          "dropped_events": 57015,
+          "floor_visited": 4388,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 43800,
+            "finalization": 2700,
+            "preparation": 46900,
+            "routing": 965900
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 26600,
+          "work_units": 1307069
+        }
+      },
+      "output_hash": "50fba8d82c1b27e886d73526c60fad59023f6dc77dcf6121073590cbbfeb0220"
+    },
+    {
+      "rooms": 20,
+      "packs": 12,
+      "repeat": 0,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1352.3000001907349,
+      "metrics": {
+        "allocation": {
+          "active_packs": 12,
+          "allocated_table_bytes": 339968,
+          "dropped_events": 40,
+          "eligible_rooms": 19,
+          "estimated_bytes": 340044,
+          "estimated_work": 10188611,
+          "feasible_states": 77587,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 4400,
+            "preprocessing": 1600,
+            "reconstruction": 1600
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 605681,
+          "work_units": 691936
+        },
+        "generation": {
+          "attempts": 190,
+          "backtracks": 0,
+          "dropped_events": 229,
+          "rejected_candidates": 151,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 7400,
+            "preflight": 49000,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 275379
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1342900,
+          "input_revision": "fnv1a32-4113288249",
+          "run_id": 20,
+          "schema_version": 1,
+          "serialization_us": 3600,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 51378,
+          "corridors_routed": 19,
+          "dropped_events": 51474,
+          "floor_visited": 5281,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 51900,
+            "finalization": 9500,
+            "preparation": 54300,
+            "routing": 1065800
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 19800,
+          "work_units": 1394778
+        }
+      },
+      "output_hash": "23da1c43eb871d7bf2a3ca45a1ce78ee4df03dc31188b3494807c8a58ba72721"
+    },
+    {
+      "rooms": 20,
+      "packs": 12,
+      "repeat": 1,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1401.7999999523163,
+      "metrics": {
+        "allocation": {
+          "active_packs": 12,
+          "allocated_table_bytes": 339968,
+          "dropped_events": 40,
+          "eligible_rooms": 19,
+          "estimated_bytes": 340044,
+          "estimated_work": 10188611,
+          "feasible_states": 77587,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 4600,
+            "preprocessing": 2100,
+            "reconstruction": 1900
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 605681,
+          "work_units": 691936
+        },
+        "generation": {
+          "attempts": 190,
+          "backtracks": 0,
+          "dropped_events": 229,
+          "rejected_candidates": 151,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 7200,
+            "preflight": 49800,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "work_units": 275379
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1392200,
+          "input_revision": "fnv1a32-4113288249",
+          "run_id": 21,
+          "schema_version": 1,
+          "serialization_us": 3700,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 51378,
+          "corridors_routed": 19,
+          "dropped_events": 51474,
+          "floor_visited": 5281,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 54100,
+            "finalization": 3400,
+            "preparation": 47300,
+            "routing": 1128700
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 25300,
+          "work_units": 1394778
+        }
+      },
+      "output_hash": "23da1c43eb871d7bf2a3ca45a1ce78ee4df03dc31188b3494807c8a58ba72721"
+    },
+    {
+      "rooms": 20,
+      "packs": 12,
+      "repeat": 2,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1487.0999999046326,
+      "metrics": {
+        "allocation": {
+          "active_packs": 12,
+          "allocated_table_bytes": 339968,
+          "dropped_events": 40,
+          "eligible_rooms": 19,
+          "estimated_bytes": 340044,
+          "estimated_work": 10188611,
+          "feasible_states": 77587,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 5200,
+            "preprocessing": 1600,
+            "reconstruction": 1900
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 605681,
+          "work_units": 691936
+        },
+        "generation": {
+          "attempts": 190,
+          "backtracks": 0,
+          "dropped_events": 229,
+          "rejected_candidates": 151,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 9000,
+            "preflight": 60000,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 200,
+          "work_units": 275379
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1476500,
+          "input_revision": "fnv1a32-4113288249",
+          "run_id": 22,
+          "schema_version": 1,
+          "serialization_us": 3700,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 51378,
+          "corridors_routed": 19,
+          "dropped_events": 51474,
+          "floor_visited": 5281,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 51600,
+            "finalization": 9600,
+            "preparation": 53900,
+            "routing": 1177600
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 29200,
+          "work_units": 1394778
+        }
+      },
+      "output_hash": "23da1c43eb871d7bf2a3ca45a1ce78ee4df03dc31188b3494807c8a58ba72721"
+    },
+    {
+      "rooms": 20,
+      "packs": 13,
+      "repeat": 0,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1497.7000000476837,
+      "metrics": {
+        "allocation": {
+          "active_packs": 13,
+          "allocated_table_bytes": 679936,
+          "dropped_events": 40,
+          "eligible_rooms": 19,
+          "estimated_bytes": 680012,
+          "estimated_work": 30473501,
+          "feasible_states": 155051,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 18200,
+            "preprocessing": 3100,
+            "reconstruction": 2400
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "transitions": 1743127,
+          "work_units": 1915417
+        },
+        "generation": {
+          "attempts": 190,
+          "backtracks": 0,
+          "dropped_events": 229,
+          "rejected_candidates": 151,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 7100,
+            "preflight": 48900,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 200,
+          "work_units": 275379
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1487300,
+          "input_revision": "fnv1a32-3247745221",
+          "run_id": 23,
+          "schema_version": 1,
+          "serialization_us": 3600,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 51378,
+          "corridors_routed": 19,
+          "dropped_events": 51474,
+          "floor_visited": 5281,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 57800,
+            "finalization": 3300,
+            "preparation": 54700,
+            "routing": 1190300
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 23400,
+          "work_units": 1394778
+        }
+      },
+      "output_hash": "e9bfe3b31419109ff9d9cf5c273d51b3173fa2a78cfff98d417309e256af6007"
+    },
+    {
+      "rooms": 20,
+      "packs": 13,
+      "repeat": 1,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1485.2999999523163,
+      "metrics": {
+        "allocation": {
+          "active_packs": 13,
+          "allocated_table_bytes": 679936,
+          "dropped_events": 40,
+          "eligible_rooms": 19,
+          "estimated_bytes": 680012,
+          "estimated_work": 30473501,
+          "feasible_states": 155051,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 17600,
+            "preprocessing": 2200,
+            "reconstruction": 1800
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 1743127,
+          "work_units": 1915417
+        },
+        "generation": {
+          "attempts": 190,
+          "backtracks": 0,
+          "dropped_events": 229,
+          "rejected_candidates": 151,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 7900,
+            "preflight": 51400,
+            "search": 100
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 100,
+          "work_units": 275379
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1475200,
+          "input_revision": "fnv1a32-3247745221",
+          "run_id": 24,
+          "schema_version": 1,
+          "serialization_us": 3700,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 51378,
+          "corridors_routed": 19,
+          "dropped_events": 51474,
+          "floor_visited": 5281,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 62700,
+            "finalization": 10000,
+            "preparation": 61800,
+            "routing": 1158900
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 24900,
+          "work_units": 1394778
+        }
+      },
+      "output_hash": "e9bfe3b31419109ff9d9cf5c273d51b3173fa2a78cfff98d417309e256af6007"
+    },
+    {
+      "rooms": 20,
+      "packs": 13,
+      "repeat": 2,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1447.7000000476837,
+      "metrics": {
+        "allocation": {
+          "active_packs": 13,
+          "allocated_table_bytes": 679936,
+          "dropped_events": 40,
+          "eligible_rooms": 19,
+          "estimated_bytes": 680012,
+          "estimated_work": 30473501,
+          "feasible_states": 155051,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 20600,
+            "preprocessing": 2400,
+            "reconstruction": 1600
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 1743127,
+          "work_units": 1915417
+        },
+        "generation": {
+          "attempts": 190,
+          "backtracks": 0,
+          "dropped_events": 229,
+          "rejected_candidates": 151,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 8200,
+            "preflight": 52300,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 275379
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1437500,
+          "input_revision": "fnv1a32-3247745221",
+          "run_id": 25,
+          "schema_version": 1,
+          "serialization_us": 3400,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 51378,
+          "corridors_routed": 19,
+          "dropped_events": 51474,
+          "floor_visited": 5281,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 53700,
+            "finalization": 8600,
+            "preparation": 56000,
+            "routing": 1129900
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 22400,
+          "work_units": 1394778
+        }
+      },
+      "output_hash": "e9bfe3b31419109ff9d9cf5c273d51b3173fa2a78cfff98d417309e256af6007"
+    },
+    {
+      "rooms": 20,
+      "packs": 14,
+      "repeat": 0,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1439.5999999046326,
+      "metrics": {
+        "allocation": {
+          "active_packs": 14,
+          "allocated_table_bytes": 1359872,
+          "dropped_events": 40,
+          "eligible_rooms": 19,
+          "estimated_bytes": 1359948,
+          "estimated_work": 91238019,
+          "feasible_states": 309453,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 46000,
+            "preprocessing": 3400,
+            "reconstruction": 1600
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 5082555,
+          "work_units": 5426904
+        },
+        "generation": {
+          "attempts": 190,
+          "backtracks": 0,
+          "dropped_events": 229,
+          "rejected_candidates": 151,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 10000,
+            "preflight": 53200,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 300,
+          "work_units": 275379
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1431000,
+          "input_revision": "fnv1a32-3274369426",
+          "run_id": 26,
+          "schema_version": 1,
+          "serialization_us": 3500,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 51378,
+          "corridors_routed": 19,
+          "dropped_events": 51474,
+          "floor_visited": 5281,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 45900,
+            "finalization": 9600,
+            "preparation": 55300,
+            "routing": 1110700
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 23000,
+          "work_units": 1394778
+        }
+      },
+      "output_hash": "f79953d56e15c3a7edba11c5b0e58f0d65ce8dfc46676939a58ff42971db69c6"
+    },
+    {
+      "rooms": 20,
+      "packs": 14,
+      "repeat": 1,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1390.7000000476837,
+      "metrics": {
+        "allocation": {
+          "active_packs": 14,
+          "allocated_table_bytes": 1359872,
+          "dropped_events": 40,
+          "eligible_rooms": 19,
+          "estimated_bytes": 1359948,
+          "estimated_work": 91238019,
+          "feasible_states": 309453,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 49200,
+            "preprocessing": 3200,
+            "reconstruction": 6000
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 5082555,
+          "work_units": 5426904
+        },
+        "generation": {
+          "attempts": 190,
+          "backtracks": 0,
+          "dropped_events": 229,
+          "rejected_candidates": 151,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 8100,
+            "preflight": 49700,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 275379
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1380800,
+          "input_revision": "fnv1a32-3274369426",
+          "run_id": 27,
+          "schema_version": 1,
+          "serialization_us": 3400,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 51378,
+          "corridors_routed": 19,
+          "dropped_events": 51474,
+          "floor_visited": 5281,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 45900,
+            "finalization": 3300,
+            "preparation": 55200,
+            "routing": 1061800
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 23500,
+          "work_units": 1394778
+        }
+      },
+      "output_hash": "f79953d56e15c3a7edba11c5b0e58f0d65ce8dfc46676939a58ff42971db69c6"
+    },
+    {
+      "rooms": 20,
+      "packs": 14,
+      "repeat": 2,
+      "seed": 42,
+      "trace_events": 0,
+      "outcome": "success",
+      "bridge_wall_ms": 1367.9000000953674,
+      "metrics": {
+        "allocation": {
+          "active_packs": 14,
+          "allocated_table_bytes": 1359872,
+          "dropped_events": 40,
+          "eligible_rooms": 19,
+          "estimated_bytes": 1359948,
+          "estimated_work": 91238019,
+          "feasible_states": 309453,
+          "storage_domain": "logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory",
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "dp": 47100,
+            "preprocessing": 3200,
+            "reconstruction": 1600
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "transitions": 5082555,
+          "work_units": 5426904
+        },
+        "generation": {
+          "attempts": 190,
+          "backtracks": 0,
+          "dropped_events": 229,
+          "rejected_candidates": 151,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "finalization": 7500,
+            "preflight": 48700,
+            "search": 0
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 0,
+          "work_units": 275379
+        },
+        "instrumentation": {
+          "build_mode": "release",
+          "detailed_trace": false,
+          "engine_version": "0.10.0",
+          "environment": "wasm-web-worker",
+          "execution_wall_us": 1358600,
+          "input_revision": "fnv1a32-3274369426",
+          "run_id": 28,
+          "schema_version": 1,
+          "serialization_us": 3500,
+          "timing_domain": "wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only",
+          "trace_estimated_json_bytes": 2,
+          "trace_events": 0,
+          "tracing_enabled": false
+        },
+        "routing": {
+          "anchors_visited": 51378,
+          "corridors_routed": 19,
+          "dropped_events": 51474,
+          "floor_visited": 5281,
+          "timing_domain": "steady_clock_wall_including_validation_and_cooperative_yields",
+          "timings_us": {
+            "derivation": 46200,
+            "finalization": 7400,
+            "preparation": 48200,
+            "routing": 1055100
+          },
+          "trace_timing": "nested_emission_overhead_included_in_stage_timings",
+          "trace_us": 22300,
+          "work_units": 1394778
+        }
+      },
+      "output_hash": "f79953d56e15c3a7edba11c5b0e58f0d65ce8dfc46676939a58ff42971db69c6"
+    }
+  ]
+}

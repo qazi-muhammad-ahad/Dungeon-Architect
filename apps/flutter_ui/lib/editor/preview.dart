@@ -132,6 +132,20 @@ class _DungeonPreviewState extends State<DungeonPreview> {
     if (event.buttons != kPrimaryMouseButton) return;
     final point = camera.tileAt(event.localPosition, columns, rows);
     if (point == null) return;
+    if (c.view == EditorView.analyze &&
+        c.scenario.blocking &&
+        !c.stale &&
+        !c.scenario.busy) {
+      final g = c.payload?['geometry'];
+      final entrance = g?['entrance_marker'];
+      final floor = g?['layers']?['floor'] as List?;
+      if (floor != null &&
+          floor[point.y][point.x] == '1' &&
+          (point.x != entrance['x'] || point.y != entrance['y'])) {
+        c.scenario.toggleTile(point.x, point.y);
+      }
+      return;
+    }
     if (!design || tool == CanvasTool.select) {
       String? id;
       for (final room in c.editableRooms.reversed) {
@@ -145,6 +159,19 @@ class _DungeonPreviewState extends State<DungeonPreview> {
         }
       }
       c.select(id);
+      if (c.view == EditorView.analyze) {
+        int? node;
+        for (final n in c.payload?['layout']?['partitions'] as List? ?? []) {
+          final b = n['bounds'];
+          if (point.x >= b['x'] &&
+              point.y >= b['y'] &&
+              point.x < b['x'] + b['width'] &&
+              point.y < b['y'] + b['height']) {
+            node = n['id'] as int;
+          }
+        }
+        c.selectPartition(node);
+      }
       return;
     }
     if (!editable) return;
@@ -857,7 +884,12 @@ class _DungeonPreviewState extends State<DungeonPreview> {
                           painter: CanvasPainter(
                             camera: camera,
                             source: previewSource ?? c.source,
-                            payload: c.payload,
+                            payload: c.view == EditorView.analyze
+                                ? c.scenario.displayPayload
+                                : c.payload,
+                            blockedTiles: c.view == EditorView.analyze
+                                ? c.scenario.blocked
+                                : const {},
                             analysis:
                                 pending?.document['editor_analysis']
                                     as Map<String, dynamic>? ??
@@ -869,6 +901,15 @@ class _DungeonPreviewState extends State<DungeonPreview> {
                             floor: showFloor,
                             walls: showWalls,
                             selected: c.selectedRoom,
+                            overlays: c.view == EditorView.analyze
+                                ? c.overlays
+                                : null,
+                            selectedPartition: c.view == EditorView.analyze
+                                ? c.selectedPartition
+                                : null,
+                            traceEvent: c.view == EditorView.analyze
+                                ? c.playback.current
+                                : null,
                             stroke: Set.of(stroke),
                             erase: tool == CanvasTool.erase,
                             dragStart: start,
@@ -932,12 +973,16 @@ class CanvasPainter extends CustomPainter {
     required this.floor,
     required this.walls,
     this.selected,
+    this.overlays,
+    this.selectedPartition,
+    this.traceEvent,
     this.stroke = const {},
     this.erase = false,
     this.dragStart,
     this.dragEnd,
     this.shape = false,
     this.errors = const [],
+    this.blockedTiles = const {},
   });
   final CanvasCamera camera;
   final Map<String, dynamic> source, analysis;
@@ -945,9 +990,14 @@ class CanvasPainter extends CustomPainter {
   final EditorColors colors;
   final bool grid, diagnostics, reservations, floor, walls, erase, shape;
   final String? selected;
+  final Set<String>? overlays;
+  final int? selectedPartition;
+  final Map<String, dynamic>? traceEvent;
+  bool show(String key) => overlays == null || overlays!.contains(key);
   final Set<int> stroke;
   final Point<int>? dragStart, dragEnd;
   final List<dynamic> errors;
+  final Set<String> blockedTiles;
   int visitedCells = 0, paintMicros = 0;
   @override
   void paint(Canvas canvas, Size size) {
@@ -1004,10 +1054,12 @@ class CanvasPainter extends CustomPainter {
       }
     }
 
-    layer(
-      source['allowed_mask'] as List?,
-      colors.dark ? const Color(0xFF38393C) : const Color(0xFFF7F8F4),
-    );
+    if (show('mask')) {
+      layer(
+        source['allowed_mask'] as List?,
+        colors.dark ? const Color(0xFF38393C) : const Color(0xFFF7F8F4),
+      );
+    }
     if (grid && s >= 2) {
       final paint = Paint()
         ..color = colors.line.withValues(alpha: .5)
@@ -1068,7 +1120,14 @@ class CanvasPainter extends CustomPainter {
       if (!r.overlaps(Offset.zero & size)) continue;
       final entrance = room['id'] == geometry?['entrance_room'],
           exit = room['id'] == geometry?['exit_room'];
-      final color = entrance ? colors.moss : colors.violet;
+      final disconnected = (geometry?['rooms'] as List? ?? []).any(
+        (r) => r['id'] == room['id'] && r['reachable'] == false,
+      );
+      final color = disconnected
+          ? Colors.redAccent
+          : entrance
+          ? colors.moss
+          : colors.violet;
       canvas.drawRect(r, Paint()..color = color.withValues(alpha: .12));
       canvas.drawRect(
         r,
@@ -1077,17 +1136,23 @@ class CanvasPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = room['id'] == selected ? 2 : 1,
       );
-      if (r.width > 20 && r.height > 14) {
+      if ((show('room IDs') || (overlays != null && show('capacities'))) &&
+          r.width > 20 &&
+          r.height > 14) {
         final label = TextPainter(
           text: TextSpan(
-            text: entrance
-                ? 'IN'
-                : exit
-                ? 'OUT'
-                : room['id'].toString().replaceFirst(
-                    RegExp(r'^(generated-|room-)'),
-                    '',
-                  ),
+            text:
+                (entrance
+                    ? 'IN'
+                    : exit
+                    ? 'OUT'
+                    : room['id'].toString().replaceFirst(
+                        RegExp(r'^(generated-|room-)'),
+                        '',
+                      )) +
+                (overlays != null && show('capacities')
+                    ? ' C${(geometry?['rooms'] as List? ?? []).where((r) => r['id'] == room['id']).map((r) => r['capacity']).firstOrNull ?? '?'}'
+                    : ''),
             style: TextStyle(fontSize: 10, color: color),
           ),
           textDirection: TextDirection.ltr,
@@ -1110,15 +1175,111 @@ class CanvasPainter extends CustomPainter {
           ..strokeWidth = 2,
       );
     }
-    for (final actor in payload?['allocation']?['actors'] as List? ?? []) {
-      final tile = actor['tile'],
-          point = camera.toScreen(Offset(tile['x'] + .5, tile['y'] + .5));
-      if ((Offset.zero & size).contains(point)) {
-        canvas.drawCircle(
-          point,
-          math.max(1.2, s * .2),
-          Paint()..color = colors.moss,
+    for (final tile in blockedTiles) {
+      final xy = tile.split(',').map(int.parse).toList();
+      canvas.drawRect(
+        rect(xy[0], xy[1], 1, 1),
+        Paint()..color = Colors.redAccent.withValues(alpha: .8),
+      );
+    }
+    if (show('assignments')) {
+      for (final actor in payload?['allocation']?['actors'] as List? ?? []) {
+        final tile = actor['tile'],
+            point = camera.toScreen(Offset(tile['x'] + .5, tile['y'] + .5));
+        if ((Offset.zero & size).contains(point)) {
+          canvas.drawCircle(
+            point,
+            math.max(1.2, s * .2),
+            Paint()..color = colors.moss,
+          );
+        }
+      }
+    }
+    if (overlays != null) {
+      void outline(dynamic b, Color color, double stroke) {
+        if (b == null || b['width'] == 0 || b['height'] == 0) return;
+        canvas.drawRect(
+          rect(b['x'], b['y'], b['width'], b['height']),
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = stroke,
         );
+      }
+
+      for (final n in payload?['layout']?['partitions'] as List? ?? []) {
+        if (show('partition bounds') || n['id'] == selectedPartition) {
+          outline(
+            n['bounds'],
+            n['id'] == selectedPartition
+                ? Colors.orange
+                : colors.violet.withValues(alpha: .4),
+            n['id'] == selectedPartition ? 3 : 1,
+          );
+        }
+      }
+      if (show('connectivity')) {
+        for (final corridor in geometry?['corridors'] as List? ?? []) {
+          final path = corridor['path'] as List;
+          if (path.isEmpty) continue;
+          final line = Path();
+          for (var i = 0; i < path.length; i++) {
+            final t = path[i];
+            final p = camera.toScreen(Offset(t['x'] + .5, t['y'] + .5));
+            if (i == 0) {
+              line.moveTo(p.dx, p.dy);
+            } else {
+              line.lineTo(p.dx, p.dy);
+            }
+          }
+          canvas.drawPath(
+            line,
+            Paint()
+              ..color = colors.moss
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.5,
+          );
+        }
+      }
+      if (show('doors')) {
+        for (final door in geometry?['doors'] as List? ?? []) {
+          for (final tile in door['tiles'] as List) {
+            canvas.drawRect(
+              rect(tile['x'], tile['y'], 1, 1),
+              Paint()..color = Colors.orange,
+            );
+          }
+        }
+      }
+      final event = traceEvent?['event'];
+      if (event != null) {
+        outline(event['bounds'], Colors.amber, 3);
+        for (final room in payload?['layout']?['rooms'] as List? ?? []) {
+          if (room['id'] == event['room_id']) {
+            outline(room['bounds'], Colors.amber, 3);
+          }
+        }
+        final tile = event['tile'];
+        if (tile != null) {
+          canvas.drawCircle(
+            camera.toScreen(Offset(tile['x'] + .5, tile['y'] + .5)),
+            math.max(3, s),
+            Paint()..color = Colors.amber.withValues(alpha: .8),
+          );
+        }
+        final corridorId = event['corridor_id'];
+        if (corridorId != null) {
+          for (final corridor in geometry?['corridors'] as List? ?? []) {
+            if (corridor['id'] == corridorId) {
+              for (final tile in corridor['path'] as List) {
+                canvas.drawRect(
+                  rect(tile['x'], tile['y'], 1, 1),
+                  Paint()..color = Colors.amber.withValues(alpha: .6),
+                );
+              }
+            }
+          }
+        }
       }
     }
     for (final index in stroke) {

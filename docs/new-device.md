@@ -8,7 +8,7 @@ cd Dungeon-Architect
 git status --short --branch
 ```
 
-Open this cloned folder as the project in Codex. `Development` contains phase 11;
+Open this cloned folder as the project in Codex. `Development` contains implemented phases 00-15;
 `main` remains the production branch. Commit and push ongoing work to
 `Development`. Do not merge into `main` until a production release is intended.
 GitHub authentication is required to push, but not to clone this public repository.
@@ -55,15 +55,15 @@ above are the established development setup; Linux hosting uses
 Suggested first message on the new PC:
 
 > Read README.md, docs/new-device.md, plan.md, and the current phase in todo.md.
-> Inspect Git status before edits. Stay on Development. Phases 00-11 are
+> Inspect Git status before edits. Stay on Development. Phases 00-15 are
 > implemented; do not start a later phase until I request it. Set up the tools
 > needed on this PC and verify the existing project first.
 
-Current scope: phase 11 adds runtime generation controls, fixed-room editing,
-room capacity/spawn inspection, encounter catalogue editing, generation without
-allocation, and allocation-only optimization retaining accepted geometry.
-Full gameplay and later phases remain pending. `todo.md` holds the phase checklist
-and validation evidence; `plan.md` holds the agreed mathematical scope.
+Current scope includes room/catalogue editing, bounded real algorithm playback,
+linked BSP/DP inspection, isolated reproducible benchmarks/charts/export, temporary
+failure scenarios, and exploration-only Play with native collision and exit completion.
+Combat/enemy AI and later phases remain outside this scope. See
+[Analyze and benchmarks](analyze_benchmarks.md) and [scenarios and Play](scenarios_play.md).
 
 Preserve these project constraints:
 
@@ -78,10 +78,11 @@ Preserve these project constraints:
   stop implementation and write a concise local handoff. Never invent unavailable
   telemetry. Keep private machine/session details out of committed documents.
 
-Phase 11's recorded validation includes 18 native suites, 27 Flutter tests,
-clean analyzer, Wasm and CSP builds, artifact verification, and real Chrome
-phase 11 workflow and canvas regression. Those results were obtained before this
-publication; a fresh PC still needs its own setup verification.
+Recorded local validation for phases 00-15 includes 19 native suites, 49 Flutter
+tests, clean analyzer, Wasm/CSP release builds, artifact verification and real
+Chrome scenario/Play and Analyze workflows. Benchmark observations and exact
+fixtures are in benchmarks/ and docs/analyze_benchmarks.md. A new PC still needs
+its own setup verification; measurements are not universal latency guarantees.
 
 ## What cloning includes
 

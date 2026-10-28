@@ -31,6 +31,9 @@ public:
     Search(const Project& p, const GenerationOptions& o) : source(p), options(o), rng(p.settings.seed),
         started(std::chrono::steady_clock::now()) {}
     GenerationResult run() {
+        auto out = run_impl(); timing.next("done"); out.metrics.timings_us = timing.values; return out;
+    }
+    GenerationResult run_impl() {
         if (source.settings.max_time_ms <= 0 || source.settings.max_work_units <= 0 || source.settings.max_generation_attempts <= 0) {
             result.status = validate_project(source); return std::move(result);
         }
@@ -76,12 +79,14 @@ public:
             auto id = "generated-" + std::to_string(serial++);
             if (used.insert(id).second) ids.push_back(std::move(id));
         }
+        timing.next("search");
         for (const auto& room : prepared.reservations.fixed_rooms()) event("fixed_reserved", -1, room.bounds, room.id);
         if (!solve(root, static_cast<std::int32_t>(prepared.remaining_rooms), -1, 0)) {
             if (result.status.ok()) result.status = problem(Outcome::search_exhausted, "no_layout_found", "No valid exact-count layout found within the bounded BSP search.");
             if (last_rejection && result.status.outcome == Outcome::search_exhausted) result.status.diagnostics.push_back(*last_rejection);
             return std::move(result);
         }
+        timing.next("finalization");
         for (const auto& fixed : prepared.reservations.fixed_rooms()) {
             const Room* nearest = nullptr;
             std::int64_t distance = std::numeric_limits<std::int64_t>::max();
@@ -130,6 +135,7 @@ private:
     std::vector<RoomId> ids;
     RoomLayoutSnapshot layout;
     GenerationResult result;
+    PhaseClock timing{"preflight"};
     std::optional<Diagnostic> last_rejection;
     bool tick(std::int64_t work = 1) {
         if (!result.status.ok()) return false;
@@ -154,6 +160,7 @@ private:
     }
     std::int32_t random(std::int32_t bound) { return static_cast<std::int32_t>(*rng.bounded(static_cast<std::uint32_t>(bound)).value); }
     void event(const char* kind, std::int32_t node, Rect bounds, RoomId id = {}, const char* reason = "", std::int32_t cut = 0, std::int32_t child_count = 0) {
+        TraceClock trace_clock(result.metrics.trace_us);
         if (result.events.size() < options.max_events) result.events.push_back({kind,reason,node,bounds,std::move(id),result.metrics.attempts,cut,child_count});
         else ++result.metrics.dropped_events;
     }
@@ -204,6 +211,7 @@ private:
         const auto index = static_cast<std::int32_t>(layout.partitions.size());
         PartitionNode node; node.id = index; node.parent = parent; node.bounds = region; node.requested_rooms = count;
         node.allowed_tiles = region.width*region.height-mask->sum(region); node.free_tiles = free(region);
+        timing.next("finalization");
         for (const auto& fixed : prepared.reservations.fixed_rooms()) {
             if (!tick()) return false;
             if (intersects(region,fixed.bounds)) node.intersecting_fixed_rooms.push_back(fixed.id);
@@ -264,7 +272,8 @@ private:
 GenerationResult generate_rooms(const Project& source, const GenerationOptions& options) {
     try { return Search(source,options).run(); }
     catch (const std::bad_alloc&) {
-        GenerationResult result; result.status = problem(Outcome::resource_failure,"allocation_failure","Insufficient memory for room generation."); return result;
+        GenerationResult result;
+    PhaseClock timing{"preflight"}; result.status = problem(Outcome::resource_failure,"allocation_failure","Insufficient memory for room generation."); return result;
     }
 }
 bool ProjectSession::room_layout_current() const noexcept {

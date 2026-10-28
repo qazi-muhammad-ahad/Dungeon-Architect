@@ -28,6 +28,7 @@ extension type _Client._(JSObject _) implements JSObject {
   external int get snapshotJob;
   external bool get closed;
   external static String safeJson(String raw);
+  external static String get environmentJson;
 }
 
 @JS()
@@ -46,6 +47,7 @@ class Engine {
 
   EngineResult? lastResult;
   bool get supported => true;
+  Map<String,dynamic> get environment => jsonDecode(_Client.environmentJson) as Map<String,dynamic>;
   bool get closed => _disposed || (_instance?.closed ?? false);
   int get snapshotJob => _instance?.snapshotJob ?? 0;
   Future<T> _guard<T>(Future<T> Function() action) async {

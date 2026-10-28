@@ -1,4 +1,5 @@
 #pragma once
+#include "dungeon_architect/instrumentation.h"
 #include "dungeon_architect/routing.h"
 
 namespace dungeon_architect {
@@ -23,6 +24,9 @@ struct AllocationOptions {
     std::function<bool()> cancelled;
 };
 struct AllocationMetrics {
+    TimingMap timings_us;
+    double trace_us = 0;
+    std::uint64_t allocated_table_bytes = 0; // Logical vector storage, not RSS/heap peak.
     std::uint64_t estimated_bytes = 0, estimated_work = 0;
     std::uint64_t work_units = 0, transitions = 0, feasible_states = 0, dropped_events = 0;
     std::size_t active_packs = 0, eligible_rooms = 0;

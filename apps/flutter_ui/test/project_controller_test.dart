@@ -37,7 +37,12 @@ EngineResult success(String raw) => EngineResult(
             },
           ],
         },
-        'allocation': {'total_score': 14, 'total_threat': 3, 'actors': []},
+        'allocation': {
+          'total_score': 14,
+          'total_threat': 3,
+          'actors': [],
+          'assignments': [],
+        },
       },
     }),
   ) as Map<String, dynamic>,
@@ -49,6 +54,11 @@ class FakeEngine extends Engine {
   final List<int> triedSeeds = [];
   @override
   Future<void> open() async {}
+  @override
+  Future<Map<String, dynamic>> metrics() async => {};
+  @override
+  Future<Map<String, dynamic>> trace({int cursor = 0, int count = 128}) async =>
+      {'events': [], 'next_cursor': 0, 'total': 0};
   @override
   Future<EngineResult> run(
     String raw, {

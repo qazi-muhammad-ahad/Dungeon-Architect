@@ -2,6 +2,7 @@ import 'models.dart';
 
 class Engine {
   bool get supported => false;
+  Map<String,dynamic> get environment => {"platform":"unsupported"};
   bool closed = false;
   EngineResult? get lastResult => null;
   int get snapshotJob => 0;

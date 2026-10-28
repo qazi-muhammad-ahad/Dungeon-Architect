@@ -1,9 +1,12 @@
 #pragma once
+#include "dungeon_architect/instrumentation.h"
 #include "dungeon_architect/generation.h"
 
 namespace dungeon_architect {
 using RoutingOptions = GenerationOptions;
 struct RoutingMetrics {
+    TimingMap timings_us;
+    double trace_us = 0;
     std::int64_t work_units = 0, anchors_visited = 0, floor_visited = 0, corridors_routed = 0;
     std::uint64_t dropped_events = 0;
 };

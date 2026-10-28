@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <map>
+#include <string_view>
 
 namespace dungeon_architect {
 namespace {
@@ -28,6 +29,9 @@ class Router {
 public:
     Router(const Project& p,const RoomLayoutSnapshot& l,const RoutingOptions& o) : source(p),layout(l),options(o),start(std::chrono::steady_clock::now()) {}
     RoutingResult run() {
+        auto out = run_impl(); timing.next("done"); out.metrics.timings_us = timing.values; return out;
+    }
+    RoutingResult run_impl() {
         if (options.max_events > 4096) { result.status = error(Outcome::unsupported_size,"trace_limit","Trace storage supports at most 4096 events."); return std::move(result); }
         if (options.cancelled && options.cancelled()) { result.status = error(Outcome::cancelled,"cancelled","Corridor routing was cancelled."); return std::move(result); }
         // Allocation metadata can change without invalidating room geometry.
@@ -54,8 +58,11 @@ public:
             basic[index({x,y})] = blocked.sum(x,y,width,width) == 0 ? 1 : 0;
         }
         for (const auto& room : layout.rooms) rooms.emplace(room.id,&room);
+        timing.next("routing");
         for (std::size_t e = 0; e < layout.connections.size(); ++e) if (!route(layout.connections[e],e)) return std::move(result);
+        timing.next("derivation");
         if (!derive()) return std::move(result);
+        timing.next("finalization");
         std::int64_t final_work = static_cast<std::int64_t>(source.allowed_mask.size())*20 + static_cast<std::int64_t>(layout.rooms.size()*layout.rooms.size());
         for (const auto& n : layout.partitions) final_work += std::int64_t{n.bounds.width}*n.bounds.height;
         for (const auto& c : geometry.corridors) final_work += static_cast<std::int64_t>(c.path.size())*width*width*5;
@@ -71,6 +78,7 @@ private:
     std::chrono::steady_clock::time_point start;
     int width = 1;
     RoutingResult result;
+    PhaseClock timing{"preparation"};
     GeometrySnapshot geometry;
     std::vector<std::uint8_t> basic,door_cells;
     std::map<RoomId,const Room*> rooms;
@@ -87,7 +95,9 @@ private:
         result.metrics.work_units += work; return true;
     }
     void event(const char* kind,const CorridorId& corridor, const RoomId& room, Tile t) {
-        if (result.events.size() < options.max_events) result.events.push_back({kind,corridor,room,t}); else ++result.metrics.dropped_events;
+        TraceClock trace_clock(result.metrics.trace_us);
+        const auto limit = std::string_view(kind) == "anchor_visited" ? options.max_events/2 : options.max_events;
+        if (result.events.size() < limit) result.events.push_back({kind,corridor,room,t}); else ++result.metrics.dropped_events;
     }
     std::vector<Door> doors(const Room& room) {
         std::vector<Door> out;

@@ -6,6 +6,10 @@ const path = require('node:path');
 const http = require('node:http');
 const {execFileSync} = require('node:child_process');
 const {chromium} = require('playwright');
+// Wall-clock measurements differ between independent native and Wasm runs.
+// Compare every semantic/counter/event field while excluding timing telemetry.
+const semanticReport = raw => JSON.parse(raw, (key,value) =>
+  key === 'timings_us' || key === 'trace_us' ? undefined : value);
 const root = path.resolve(__dirname,'../..');
 const small = fs.readFileSync(path.join(root,'datasets/pipeline/teaching.json'),'utf8');
 const large = fs.readFileSync(path.join(root,'datasets/allocation/standard-14.json'),'utf8');
@@ -43,11 +47,11 @@ const server = http.createServer((req,res) => {
       const actual = await page.evaluate(async ({small,operation}) => client.run(small,operation+1),{small,operation});
       const expected = execFileSync(cli,[command,path.join(root,'datasets/pipeline/teaching.json'),'--json'],{encoding:'utf8',windowsHide:true});
       // The legacy validate command uses Windows text-mode CRLF stdout.
-      assert.equal(actual,command === 'validate' ? expected.replaceAll('\r\n','\n') : expected,`${command} CLI/Wasm parity`); checks++;
+      assert.deepEqual(semanticReport(actual),semanticReport(expected),`${command} CLI/Wasm parity`); checks++;
     }
     const native = execFileSync(cli,['run',path.join(root,'datasets/pipeline/irregular-fortress.json'),'--json','--events','16'],{encoding:'utf8',windowsHide:true,maxBuffer:10*1024*1024});
     const web = await page.evaluate(fortress => client.run(fortress,5,16),fortress);
-    assert.equal(web,native,'150x150 irregular/14-pack parity'); checks++;
+    assert.deepEqual(semanticReport(web),semanticReport(native),'150x150 irregular/14-pack parity'); checks++;
     const details = await page.evaluate(async () => {
       const metrics = JSON.parse(await client.metrics());
       let cursor = 0, events = [], batch;

@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'editor/project_controller.dart';
+import 'editor/analysis_panel.dart';
+import 'editor/scenario_panel.dart';
+import 'editor/play_workspace.dart';
 import 'editor/files.dart';
 import 'editor/preview.dart';
 import 'editor/preferences.dart';
@@ -87,6 +90,7 @@ class _EditorShellState extends State<EditorShell> {
 
   Future<bool> _confirmDiscard() async {
     if (!c.dirty) return true;
+    c.play.pause();
     final choice = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -197,6 +201,7 @@ class _EditorShellState extends State<EditorShell> {
 
   Future<void> _rename() async {
     final text = TextEditingController(text: c.source['name'] as String? ?? '');
+    c.play.pause();
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -694,12 +699,20 @@ class _EditorShellState extends State<EditorShell> {
                     ? 'DESIGN CANVAS'
                     : c.view == EditorView.analyze
                     ? 'ALLOCATION OVERVIEW'
-                    : 'EXPLORATION PREVIEW',
+                    : 'EXPLORATION',
                 style: TextStyle(fontSize: 10, letterSpacing: 1, color: muted),
               ),
               Spacer(),
               if (c.stale) _badge('STALE · previous result', Color(0xFF946322)),
-              if (!c.stale && c.result != null) _badge('VERIFIED', moss),
+              if (!c.stale && c.result != null)
+                _badge(
+                  c.scenario.stale
+                      ? 'SCENARIO STALE'
+                      : c.scenario.result != null
+                      ? 'SCENARIO VERIFIED'
+                      : 'BASELINE VERIFIED',
+                  c.scenario.stale ? Color(0xFF946322) : moss,
+                ),
               SizedBox(width: 12),
               Text(
                 'TILES',
@@ -713,47 +726,29 @@ class _EditorShellState extends State<EditorShell> {
           ),
         ),
         if (c.view == EditorView.analyze)
-          Container(
-            width: double.infinity,
-            color: panel,
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Analyze · inspect the solved encounter allocation and engine work.',
-                  style: TextStyle(fontSize: 12, color: ink),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  c.allocation == null
-                      ? 'Generate a layout first to see score, threat usage and placed actors.'
-                      : '${c.stale ? 'Previous result · ' : ''}${c.rooms.length} rooms · Score ${c.allocation!['total_score']} · Threat ${c.allocation!['total_threat']} · ${(c.allocation!['actors'] as List).length} actors',
-                  style: TextStyle(fontSize: 11, color: violet),
-                ),
-                Text(
-                  'Select rooms to inspect them. Engine counters appear in the console; step-by-step algorithm playback is not available yet.',
-                  style: TextStyle(fontSize: 11, color: muted),
-                ),
-              ],
-            ),
-          ),
-        if (c.view == EditorView.play)
-          Container(
-            width: double.infinity,
-            color: colors.panel,
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              'Play · map preview only. Inspect the entrance, exit and connected floor. Player movement is not implemented yet.${c.stale ? ' Generate again to refresh this map.' : ''}',
-              style: TextStyle(fontSize: 11, color: moss),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  AnalyzePanel(controller: c),
+                  ScenarioPanel(
+                    key: ValueKey(
+                      'scenario-${c.documentEpoch}-${c.scenario.baselineJob}',
+                    ),
+                    controller: c,
+                  ),
+                ],
+              ),
             ),
           ),
         Expanded(
-          child: DungeonPreview(
-            key: ValueKey(c.documentEpoch),
-            controller: c,
-            grid: grid,
-          ),
+          child: c.view == EditorView.play
+              ? PlayWorkspace(controller: c)
+              : DungeonPreview(
+                  key: ValueKey(c.documentEpoch),
+                  controller: c,
+                  grid: grid,
+                ),
         ),
         Container(
           height: 34,

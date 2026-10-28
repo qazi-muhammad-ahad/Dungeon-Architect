@@ -22,6 +22,7 @@ class Solver {
     const AllocationInput& input;
     const AllocationOptions& options;
     AllocationResult result;
+    PhaseClock timing{"preprocessing"};
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     void checkpoint() {
         if (options.cancelled && options.cancelled()) throw Stop{problem(Outcome::cancelled,"allocation_cancelled","Optimization was cancelled; no optimum is published.")};
@@ -35,7 +36,11 @@ class Solver {
         if (old/1024 != result.metrics.work_units/1024) checkpoint();
     }
     void event(std::string kind,RoomId room = {},Mask mask = 0,Mask subset = 0,std::uint64_t states = 0) {
-        if (result.events.size() < options.max_events) result.events.push_back({std::move(kind),std::move(room),mask,subset,states});
+        TraceClock trace_clock(result.metrics.trace_us);
+        const bool reconstruction = kind == "reconstruct" || kind == "optimal";
+        const auto reserve = std::min(options.max_events/2,result.metrics.eligible_rooms+1);
+        const auto limit = reconstruction ? options.max_events : options.max_events-reserve;
+        if (result.events.size() < limit) result.events.push_back({std::move(kind),std::move(room),mask,subset,states});
         else ++result.metrics.dropped_events;
     }
     void solve() {
@@ -84,17 +89,21 @@ class Solver {
                 fits[r*count+m] = static_cast<std::uint8_t>((m & ~allowed) == 0 && totals[m].slots <= rooms[r].capacity); work();
             }
         }
+        timing.next("dp");
         const auto missing = std::numeric_limits<std::uint16_t>::max();
         std::vector<std::uint16_t> predecessors(rcount*count,missing);
         std::vector<std::uint8_t> previous(count,0),next(count,0); previous[0] = 1;
+        result.metrics.allocated_table_bytes = totals.capacity()*sizeof(Totals)+fits.capacity()*sizeof(std::uint8_t)+predecessors.capacity()*sizeof(std::uint16_t)+(previous.capacity()+next.capacity())*sizeof(std::uint8_t);
         for (std::size_t r = 0; r < rcount; ++r) {
             std::fill(next.begin(),next.end(),0); std::uint64_t states = 0;
             for (Mask m = 0; m < count; ++m) {
                 Mask chosen = 0; bool found = previous[m] != 0;
                 work(); ++result.metrics.transitions;
+                if (options.detailed_trace) event(previous[m] ? "candidate_empty_feasible" : "candidate_empty_infeasible",rooms[r].room.id,m,0);
                 // Unsigned subtraction enumerates submasks in ascending order.
                 if (!found) for (Mask sub = (Mask{0}-m)&m; sub; sub = (sub-m)&m) {
                     work(); ++result.metrics.transitions;
+                    if (options.detailed_trace) event(fits[r*count+sub] && previous[m^sub] ? "candidate_feasible" : "candidate_infeasible",rooms[r].room.id,m,sub);
                     if (fits[r*count+sub] && previous[m^sub]) { chosen = sub; found = true; break; }
                 }
                 if (found) { next[m] = 1; predecessors[r*count+m] = static_cast<std::uint16_t>(chosen); ++states; }
@@ -111,6 +120,7 @@ class Solver {
             if (a.score > b.score || (a.score == b.score && (a.threat < b.threat || (a.threat == b.threat &&
                 (a.slots < b.slots || (a.slots == b.slots && ids(m) < ids(best))))))) best = m;
         }
+        timing.next("reconstruction");
         AllocationSnapshot output; output.id = "allocation-"+input.geometry_id+"-"+std::to_string(input.allocation_revision);
         output.geometry_id = input.geometry_id; output.geometry_revision = input.geometry_revision; output.allocation_revision = input.allocation_revision;
         output.total_slots = totals[best].slots; output.total_threat = totals[best].threat; output.total_score = totals[best].score;
@@ -144,6 +154,7 @@ public:
         try { solve(); }
         catch (const Stop& e) { result.status = e.status; result.allocation.reset(); }
         catch (const std::bad_alloc&) { result.status = problem(Outcome::resource_failure,"allocation_memory","Not enough memory for exact optimization."); result.allocation.reset(); }
+        timing.next("done"); result.metrics.timings_us = timing.values;
         return std::move(result);
     }
 };
@@ -159,6 +170,7 @@ AllocationResult allocate_encounters(const Project& source,const RoomLayoutSnaps
 }
 AllocationResult allocate_encounters(ProjectSession& session,const AllocationOptions& options) {
     AllocationResult result;
+    PhaseClock timing{"preprocessing"};
     try {
         if (options.cancelled && options.cancelled()) {
             result.status = problem(Outcome::cancelled,"allocation_cancelled","Optimization was cancelled."); return result;

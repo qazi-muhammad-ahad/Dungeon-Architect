@@ -174,6 +174,64 @@ da::Project source() {
     auto b = a; b.id = b.name = "exit"; b.bounds.x = 18; b.role = da::RoomRole::exit; b.tags = {"stone"}; p.rooms = {a,b};
     p.packs = {pack("a",2,2,9),pack("b",1,1,5)}; p.settings.threat_budget = 2; return p;
 }
+void teaching_trace_semantics() {
+    auto in = fixture(2); in.rooms[0].capacity = 1; in.rooms[1].capacity = 2;
+    in.packs = {pack("a",2,2,7),pack("b",1,1,4),pack("c",1,1,3)};
+    in.settings.threat_budget = 3;
+    da::AllocationOptions detailed; detailed.detailed_trace = true; detailed.max_events = 4096;
+    const auto traced = da::allocate_encounters(in,detailed); CHECK(traced.ok());
+    std::set<std::pair<std::string,std::string>> reconstructed;
+    std::size_t state_events = 0, candidate_events = 0;
+    for (const auto& e : traced.events) {
+        if (e.kind.find("candidate_") == 0) {
+            ++candidate_events;
+            CHECK(e.mask < 8 && (e.subset & ~e.mask) == 0);
+            const auto room = std::find_if(in.rooms.begin(),in.rooms.end(),[&](const auto& r) { return r.room.id == e.room_id; });
+            CHECK(room != in.rooms.end());
+            auto prior = in; prior.rooms.erase(prior.rooms.begin()+(room-in.rooms.begin()),prior.rooms.end());
+            prior.packs.clear(); prior.settings.threat_budget = 100;
+            std::int64_t slots = 0;
+            for (std::size_t k = 0; k < in.packs.size(); ++k) {
+                if ((e.mask^e.subset) & (1U<<k)) { auto p=in.packs[k]; p.score=1; prior.packs.push_back(p); }
+                if (e.subset & (1U<<k)) slots += in.packs[k].slots;
+            }
+            const bool feasible = slots <= room->capacity && exhaustive(prior).score == static_cast<std::int64_t>(prior.packs.size());
+            CHECK((e.kind == "candidate_feasible" || e.kind == "candidate_empty_feasible") == feasible);
+        }
+        if (e.kind == "state_feasible" || e.kind == "state_infeasible") {
+            ++state_events;
+            CHECK(e.mask < 8 && (e.subset & ~e.mask) == 0);
+            const auto room = std::find_if(in.rooms.begin(),in.rooms.end(),[&](const auto& r) { return r.room.id == e.room_id; });
+            CHECK(room != in.rooms.end());
+            auto prefix = in; prefix.rooms.erase(prefix.rooms.begin()+(room-in.rooms.begin())+1,prefix.rooms.end());
+            prefix.packs.clear(); prefix.settings.threat_budget = 100;
+            for (std::size_t k = 0; k < in.packs.size(); ++k) if (e.mask & (1U<<k)) {
+                auto p = in.packs[k]; p.score = 1; prefix.packs.push_back(p);
+            }
+            // Exhaustive per-pack placement is independent of the native mask DP.
+            const bool feasible = exhaustive(prefix).score == static_cast<std::int64_t>(prefix.packs.size());
+            CHECK((e.kind == "state_feasible") == feasible);
+        }
+        if (e.kind == "reconstruct") for (std::size_t k = 0; k < in.packs.size(); ++k)
+            if (e.subset & (1U<<k)) CHECK(reconstructed.emplace(in.packs[k].id,e.room_id).second);
+    }
+    CHECK(state_events == 16);
+    CHECK(candidate_events == traced.metrics.transitions);
+    CHECK(traced.metrics.allocated_table_bytes > 0 && traced.metrics.allocated_table_bytes <= traced.metrics.estimated_bytes);
+    std::set<std::pair<std::string,std::string>> assignments;
+    for (const auto& a : traced.allocation->assignments) assignments.emplace(a.pack_id,a.room_id);
+    CHECK(reconstructed == assignments);
+    for (const std::size_t cap : {0U,1U,7U,4096U}) {
+        auto options = detailed; options.max_events = cap;
+        const auto result = da::allocate_encounters(in,options); CHECK(result.ok());
+        CHECK(result.events.size() <= cap);
+        CHECK(result.allocation->total_score == traced.allocation->total_score);
+        CHECK(selected(*result.allocation) == selected(*traced.allocation));
+        CHECK(result.allocation->assignments.size() == traced.allocation->assignments.size());
+        for (std::size_t k = 0; k < result.allocation->assignments.size(); ++k)
+            CHECK(result.allocation->assignments[k].room_id == traced.allocation->assignments[k].room_id);
+    }
+}
 void session_edits() {
     da::ProjectSession session; CHECK(session.update(source()).ok());
     CHECK(da::allocate_encounters(session).status.outcome == da::Outcome::stale_result);
@@ -206,6 +264,6 @@ void session_edits() {
     CHECK(result.ok() && result.allocation->total_score == 14 && session.geometry() == reused);
 }
 int main() {
-    try { oracle_matrix(); edge_cases(); corruption(); limits_and_traces(); session_edits(); std::cout << checks << " allocation checks passed\n"; return 0; }
+    try { oracle_matrix(); edge_cases(); corruption(); limits_and_traces(); teaching_trace_semantics(); session_edits(); std::cout << checks << " allocation checks passed\n"; return 0; }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

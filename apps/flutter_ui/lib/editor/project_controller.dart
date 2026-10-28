@@ -4,6 +4,9 @@ import 'package:flutter/foundation.dart';
 
 import '../engine/engine.dart';
 import 'exact_json.dart';
+import 'analysis_controller.dart';
+import 'scenario_controller.dart';
+import 'play_controller.dart';
 
 enum EditorView { design, analyze, play }
 
@@ -12,8 +15,93 @@ enum RunState { idle, running, cancelling, successful, stale, invalid, failed }
 class ProjectController extends ChangeNotifier {
   ProjectController({Engine? engine, Engine? validator})
     : engine = engine ?? Engine(),
-      validator = validator ?? Engine();
+      validator = validator ?? Engine() {
+    scenario = ScenarioController(() => this.engine);
+    play = PlayController(
+      ({
+        required snapshotJob,
+        required x,
+        required y,
+        required dx,
+        required dy,
+      }) => this.engine.step(
+        snapshotJob: snapshotJob,
+        x: x,
+        y: y,
+        dx: dx,
+        dy: dy,
+      ),
+    );
+    scenario.addListener(_scenarioChanged);
+    playback.addListener(_notify);
+    benchmarks.addListener(_notify);
+  }
   Engine engine, validator;
+  late final ScenarioController scenario;
+  late final PlayController play;
+  void _scenarioChanged() {
+    play.invalidate();
+    _notify();
+  }
+
+  final TracePlayback playback = TracePlayback();
+  final BenchmarkController benchmarks = BenchmarkController();
+  Map<String, dynamic> analysisMetrics = {};
+  final Set<String> overlays = {'mask', 'room IDs', 'assignments'};
+  int? selectedPartition;
+  String analysisOutcome = 'No completed run';
+  void toggleOverlay(String key) {
+    if (!overlays.add(key)) overlays.remove(key);
+    _notify();
+  }
+
+  void selectPartition(int? value) {
+    selectedPartition = value;
+    _notify();
+  }
+
+  Future<void> _captureAnalysis(EngineResult attempt, int stamp) async {
+    try {
+      final metric = await engine.metrics();
+      final events = <Map<String, dynamic>>[];
+      var cursor = 0, dropped = 0, runId = 0;
+      var truncated = false;
+      while (events.length < TracePlayback.maxEvents) {
+        final batch = await engine.trace(cursor: cursor);
+        if (disposed || stamp != revision) return;
+        runId = batch['run_id'] as int? ?? batch['job'] as int? ?? 0;
+        for (final raw in batch['events'] as List? ?? []) {
+          final event = Map<String, dynamic>.from(raw as Map)
+            ..['editor_revision'] = stamp;
+          events.add(event);
+        }
+        dropped = batch['dropped_events'] as int? ?? 0;
+        truncated = batch['truncated'] == true;
+        final next = batch['next_cursor'] as int? ?? cursor;
+        if (next == cursor || next >= (batch['total'] as int? ?? 0)) break;
+        cursor = next;
+      }
+      if (disposed || stamp != revision) return;
+      analysisMetrics = metric;
+      analysisOutcome =
+          '${attempt.document['outcome']} · ${attempt.document['optimal'] == true ? 'exact allocation verified' : 'no optimality claim'}';
+      playback.load(
+        events,
+        revision: stamp,
+        runId: runId,
+        truncated: truncated,
+        dropped: dropped,
+      );
+      _notify();
+    } catch (e) {
+      if (!disposed && stamp == revision) {
+        analysisOutcome = "Trace unavailable: $e";
+        playback.load([], revision: stamp, runId: 0);
+        _notify();
+      }
+    }
+  }
+
   int documentEpoch = 0;
   Map<String, dynamic>? document;
   String canonical = '', filename = 'untitled.dungeon.json';
@@ -54,6 +142,7 @@ class ProjectController extends ChangeNotifier {
       !validating &&
       !canvasDraft &&
       !busy &&
+      !scenario.busy &&
       fieldErrors.isEmpty &&
       validatedRevision == revision;
   bool get canSave =>
@@ -111,6 +200,18 @@ class ProjectController extends ChangeNotifier {
   String nextRoomId() => _nextId('room', editableRooms);
   String nextPackId() => _nextId('pack', catalogue);
   void _notify() {
+    if (scenario.revision != revision ||
+        !identical(scenario.baseline, result)) {
+      scenario.bind(result, revision, engine.snapshotJob);
+      play.invalidate();
+    }
+    if (view != EditorView.play || busy || validating || canvasDraft) {
+      play.pause();
+    }
+    if (playback.playing &&
+        (playback.revision != revision || view != EditorView.analyze)) {
+      playback.pause();
+    }
     if (!disposed) notifyListeners();
   }
 
@@ -198,6 +299,10 @@ class ProjectController extends ChangeNotifier {
       allocationRevision++;
       validatedRevision = revision;
       result = null;
+      playback.load([], revision: revision, runId: 0);
+      analysisMetrics = {};
+      analysisOutcome = "No completed run";
+      selectedPartition = null;
       resultRevision = -1;
       resultGeometryRevision = -1;
       selectedRoom = null;
@@ -220,6 +325,7 @@ class ProjectController extends ChangeNotifier {
   }
 
   void switchView(EditorView value) {
+    if (value != EditorView.analyze) playback.pause();
     view = value;
     _notify();
   }
@@ -349,6 +455,7 @@ class ProjectController extends ChangeNotifier {
     }
     final stamp = revision;
     activeRevision = stamp;
+    playback.pause();
     state = RunState.running;
     searchAttempt = 0;
     final draft = decodeExact(canonical) as Map<String, dynamic>;
@@ -384,8 +491,15 @@ class ProjectController extends ChangeNotifier {
             ? await engine.run(
                 winningSource,
                 operation: EngineOperation.generateDungeon,
+                maxEvents: 4096,
               )
-            : await engine.run(winningSource);
+            : await engine.run(
+                winningSource,
+                maxEvents: 4096,
+                detailedTrace:
+                    activePackCount <= 6 &&
+                    (settings['room_count'] as int? ?? 0) <= 8,
+              );
         if (disposed ||
             revision != stamp ||
             state == RunState.cancelling ||
@@ -408,6 +522,9 @@ class ProjectController extends ChangeNotifier {
         state = fieldErrors.isNotEmpty ? RunState.invalid : RunState.stale;
         note('Input changed during the run. Its result was not applied.');
       } else if (state == RunState.cancelling || timedOut) {
+        analysisOutcome = timedOut
+            ? 'search_exhausted - no optimality claim'
+            : 'cancelled - no optimality claim';
         state = stale ? RunState.stale : RunState.idle;
         note(
           timedOut
@@ -438,6 +555,16 @@ class ProjectController extends ChangeNotifier {
           allocationRevision++;
           validatedRevision = revision;
         }
+        final analysisStamp = revision;
+        await _captureAnalysis(next, analysisStamp);
+        if (disposed) return;
+        if (revision != analysisStamp || state == RunState.cancelling) {
+          state = stale ? RunState.stale : RunState.idle;
+          note(
+            'Input changed or cancelled while preparing analysis. Previous result retained.',
+          );
+          return;
+        }
         result = next;
         resultRevision = revision;
         resultGeometryRevision = geometryRevision;
@@ -447,6 +574,7 @@ class ProjectController extends ChangeNotifier {
           'Completed. ${geometryOnly ? 'Geometry verified; Optimize to allocate encounters.' : 'Exact allocation verified.'} First valid solution after $searchAttempt candidate${searchAttempt == 1 ? '' : 's'}; seed ${settings['seed']}.',
         );
       } else {
+        await _captureAnalysis(next, stamp);
         state = next.document['outcome'] == 'invalid_input'
             ? RunState.invalid
             : next.document['outcome'] == 'cancelled'
@@ -555,6 +683,7 @@ class ProjectController extends ChangeNotifier {
     }
     final stamp = revision;
     activeRevision = stamp;
+    playback.pause();
     state = RunState.running;
     stage = 'Optimizing encounters';
     note('Optimizing encounters using the existing geometry…');
@@ -562,6 +691,8 @@ class ProjectController extends ChangeNotifier {
       final next = await engine.run(
         canonical,
         operation: EngineOperation.reallocate,
+        maxEvents: 4096,
+        detailedTrace: activePackCount <= 6 && rooms.length <= 8,
       );
       if (disposed) return;
       if (revision != stamp) {
@@ -570,14 +701,26 @@ class ProjectController extends ChangeNotifier {
       } else if (state == RunState.cancelling ||
           next.document['outcome'] == 'cancelled') {
         state = stale ? RunState.stale : RunState.idle;
+        analysisOutcome = 'cancelled · no optimality claim';
         note('Cancelled. The last valid result was kept.');
       } else if (next.succeeded) {
+        final analysisStamp = revision;
+        await _captureAnalysis(next, analysisStamp);
+        if (disposed) return;
+        if (revision != analysisStamp || state == RunState.cancelling) {
+          state = stale ? RunState.stale : RunState.idle;
+          note(
+            'Input changed or cancelled while preparing analysis. Previous result retained.',
+          );
+          return;
+        }
         result = next;
         resultRevision = revision;
         resultGeometryRevision = geometryRevision;
         state = RunState.successful;
         note('Completed. Geometry reused; exact allocation verified.');
       } else {
+        await _captureAnalysis(next, stamp);
         state = RunState.failed;
         note('Optimization failed: ${_problem(next)}');
       }
@@ -678,6 +821,11 @@ class ProjectController extends ChangeNotifier {
 
   @override
   void dispose() {
+    scenario.removeListener(_scenarioChanged);
+    scenario.dispose();
+    play.dispose();
+    playback.dispose();
+    benchmarks.dispose();
     disposed = true;
     _timer?.cancel();
     unawaited(engine.close());

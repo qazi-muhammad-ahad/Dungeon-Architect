@@ -6,7 +6,7 @@ For browser hosting, reproducible builds, and traffic protection, see
 [deployment](docs/deployment.md) and [security](SECURITY.md).
 
 C++ engine and Flutter editor for constrained dungeon generation and exact
-encounter allocation. **Phases 00-11 are implemented (Chrome-first):** the build environment,
+encounter allocation. **Phases 00-15 are implemented (Chrome-first):** the build environment,
 module structure, C++ domain/validation API, transactional session updates, and
 versioned project persistence, mask editing/connectivity, fixed-room validation,
 immutable reservations, constrained BSP rooms, width-aware corridors, verified
@@ -17,8 +17,12 @@ run/cancel controls. Paint, fill, preview shapes, undo/redo, pan/zoom, resize an
 inspect mask diagnostics. See [editor workflow](docs/editor_shell.md) and
 [canvas tools and themes](docs/design_canvas.md). Room tools, runtime generation
 settings, the encounter catalogue and allocation-only optimization are described
-in [room and encounter editing](docs/room_encounter_editor.md). Full gameplay
-controls follow in later phases.
+in [room and encounter editing](docs/room_encounter_editor.md). Analyze includes
+bounded real-event playback, linked BSP/DP inspection and reproducible benchmark
+charts/export; see [Analyze and benchmarks](docs/analyze_benchmarks.md). Temporary
+failure scenarios and exploration-only Play (native collision, encounter
+inspection and exit completion) are documented in [scenarios and Play](docs/scenarios_play.md).
+Combat and enemy AI are outside this scope.
 
 Chrome is the primary UI target, following the platform decision on 2026-10-11.
 VS Code is supported as the editor; Visual Studio is not needed for this setup.
@@ -151,7 +155,7 @@ the project. Chrome uses the shared C API compiled to WebAssembly in a worker; t
 
 ## Git and Fork
 
-The `Development` branch contains the phase 11 work for continued development;
+The `Development` branch contains the implemented phases for continued development;
 `main` is the production branch. Both use the public GitHub repository above.
 Open your clone in Fork with **File > Open Repository**.
 Generated tools/builds, credentials, course handouts, and personal documents are

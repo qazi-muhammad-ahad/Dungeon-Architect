@@ -17,6 +17,11 @@ class ScriptedEngine extends Engine {
 
   @override
   Future<void> open() async {}
+  @override
+  Future<Map<String, dynamic>> metrics() async => {};
+  @override
+  Future<Map<String, dynamic>> trace({int cursor = 0, int count = 128}) async =>
+      {'events': [], 'next_cursor': 0, 'total': 0};
 
   @override
   Future<EngineResult> run(
@@ -180,20 +185,33 @@ void main() {
     },
   );
 
-  test('queued dimension edits retain both values in the latest validated draft', () async {
-    final project = decodeExact(source) as Map<String, dynamic>;
-    project['source']['settings']['room_width'] = [4, 12];
-    project['source']['settings']['room_height'] = [5, 14];
-    await c.load(encodeExact(project));
-    c.editSetting('min_room_width', '6', min: BigInt.one, max: BigInt.from(512));
-    c.editSetting('max_room_height', '15', min: BigInt.one, max: BigInt.from(512));
-    await settle(c);
-    expect(c.settings['room_width'], [6, 12]);
-    expect(c.settings['room_height'], [5, 15]);
-    expect(c.settingValue('min_room_width'), 6);
-    expect(c.settingValue('max_room_height'), 15);
-    expect(c.canSave, true);
-  });
+  test(
+    'queued dimension edits retain both values in the latest validated draft',
+    () async {
+      final project = decodeExact(source) as Map<String, dynamic>;
+      project['source']['settings']['room_width'] = [4, 12];
+      project['source']['settings']['room_height'] = [5, 14];
+      await c.load(encodeExact(project));
+      c.editSetting(
+        'min_room_width',
+        '6',
+        min: BigInt.one,
+        max: BigInt.from(512),
+      );
+      c.editSetting(
+        'max_room_height',
+        '15',
+        min: BigInt.one,
+        max: BigInt.from(512),
+      );
+      await settle(c);
+      expect(c.settings['room_width'], [6, 12]);
+      expect(c.settings['room_height'], [5, 15]);
+      expect(c.settingValue('min_room_width'), 6);
+      expect(c.settingValue('max_room_height'), 15);
+      expect(c.canSave, true);
+    },
+  );
 
   test(
     'catalogue and active inventory survive save/reopen with distinct IDs',

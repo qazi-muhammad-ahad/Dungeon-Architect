@@ -236,3 +236,14 @@ Implementation references: [Emscripten installation](https://emscripten.org/docs
 [Asyncify](https://emscripten.org/docs/porting/asyncify.html),
 [C++ exceptions](https://emscripten.org/docs/porting/exceptions.html), and
 [Dart JS interop](https://dart.dev/interop/js-interop/usage).
+
+## Analyze metadata and instrumentation
+
+Trace envelope schema 1 and separately labeled stage timing/storage telemetry are
+documented in [Analyze and benchmarks](analyze_benchmarks.md). ABI and source
+project schema remain unchanged. Report telemetry is nondeterministic; compare
+source/geometry/allocation content rather than byte-identical whole reports.
+
+## Temporary scenarios and exploration
+
+Operation 11 (DA_SCENARIO) adds independently retained temporary walkability and full exact allocation reruns. Baseline and scenario movement handles remain distinct. See [Scenarios and exploration](scenarios_play.md) for the JSON contract, lifetime, controls and timing semantics.

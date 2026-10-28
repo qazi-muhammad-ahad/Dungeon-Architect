@@ -3,10 +3,13 @@
 #include "dungeon_architect/result_json.h"
 #include "dungeon_architect/simulation.h"
 #include "editor_commands.h"
+#include "dungeon_architect/build_info.h"
 #include <atomic>
 #include <chrono>
 #include <cstring>
 #include <map>
+#include <queue>
+#include <set>
 #include <mutex>
 #include <new>
 #include <string_view>
@@ -26,12 +29,13 @@ struct Snapshot {
     std::optional<da::RoomLayoutSnapshot> layout;
     da_job job = 0;
 };
-struct Context { da_job active = 0; std::shared_ptr<const Snapshot> last; };
+struct Context { da_job active = 0; std::shared_ptr<const Snapshot> last, scenario; };
 struct Job {
     std::shared_ptr<Context> context;
     std::string input, report, metrics;
     Json events = Json::array();
     std::uint64_t dropped = 0;
+    std::string input_revision;
     uint32_t operation = 0, max_events = 0, flags = 0, state = DA_PENDING, outcome = 0;
     std::atomic<uint32_t> stage{0};
     std::atomic<bool> cancelled{false};
@@ -76,6 +80,7 @@ uint32_t outcome_code(da::Outcome o) {
     return 9;
 }
 struct Execution { da::Status status; Json doc; std::shared_ptr<Snapshot> snapshot; };
+#include "scenario_commands.h"
 Execution execute(Job& j, da_job id) {
     auto last_yield = std::chrono::steady_clock::now();
     const auto cancelled = [&] {
@@ -98,6 +103,7 @@ Execution execute(Job& j, da_job id) {
         auto edited=da::editor_api::execute(j.input);
         return {std::move(edited.status),std::move(edited.doc),{}};
     }
+    if (j.operation == DA_SCENARIO) return execute_scenario(j,id,cancelled);
     auto parsed = j.operation == DA_NEW_PROJECT ? da::Result<da::Project>{{},da::make_default_project()} : io::parse(j.input);
     if (!parsed.ok()) return {parsed.status,report::error_json(parsed.status,"input"),{}};
     const auto& p = *parsed.value;
@@ -194,14 +200,27 @@ Execution execute(Job& j, da_job id) {
     if (cancelled()) { e.status = cancelled_status(); e.doc = report::error_json(e.status,"export"); e.snapshot.reset(); }
     return e;
 }
-void extract(const Json& doc, Json& metrics, Json& events, std::uint64_t& dropped) {
-    const auto stage = doc.value("stage",std::string("validation"));
+void extract(const Json& doc, Json& metrics, Json& events, std::uint64_t& dropped, std::size_t budget = 4096) {
+    auto stage = doc.value("stage",std::string("validation"));
+    if (stage == "room_layout") stage = "generation";
+    if (stage == "walkable_geometry") stage = "routing";
     if (doc.contains("metrics")) {
         metrics[stage] = doc["metrics"];
         dropped += doc["metrics"].value("dropped_events",std::uint64_t{0});
     }
-    if (doc.contains("events")) for (const auto& event : doc["events"])
-        events.push_back({{"sequence",events.size()},{"stage",stage},{"event",event}});
+    std::size_t source_sequence = 0;
+    if (doc.contains("events")) for (const auto& event : doc["events"]) {
+        const auto index = source_sequence++;
+        const auto total = doc["events"].size();
+        // Preserve a prefix and a tail: large stages cannot starve later stages,
+        // and real reconstruction/final decisions survive summary sampling.
+        if(total>budget && index>=budget/2 && index<total-(budget-budget/2)) { ++dropped; continue; }
+        if (events.size() >= 4096) { ++dropped; continue; }
+        Json ids = Json::array();
+        for (const auto* key : {"room_id","corridor_id"}) if(event.contains(key) && event[key].is_string() && !event[key].get<std::string>().empty()) ids.push_back(event[key]);
+        if(event.contains("node") && event["node"].get<int>() >= 0) ids.push_back("partition-"+std::to_string(event["node"].get<int>()));
+        events.push_back({{"schema_version",1},{"source_sequence",index},{"sequence",events.size()},{"stage",stage},{"affected_ids",ids},{"event",event}});
+    }
 }
 }
 uint32_t DA_CALL da_bootstrap_abi_version(void) { return DA_ABI_VERSION; }
@@ -231,7 +250,7 @@ da_status DA_CALL da_job_create(da_context context, uint32_t operation, const ui
     *out = 0;
     return guarded([&]() -> da_status {
         if (!input || !length || length > DA_MAX_INPUT_BYTES || max_events > 4096 ||
-            operation < DA_VALIDATE || operation > DA_GENERATE_DUNGEON || flags > DA_DETAILED_TRACE ||
+            operation < DA_VALIDATE || operation > DA_SCENARIO || flags > DA_DETAILED_TRACE ||
             (flags && operation != DA_OPTIMIZE && operation != DA_RUN && operation != DA_REALLOCATE)) return DA_INVALID_ARGUMENT;
         std::lock_guard<std::mutex> lock(registry);
         const auto it = contexts.find(context); if (it == contexts.end()) return DA_INVALID_HANDLE;
@@ -239,6 +258,10 @@ da_status DA_CALL da_job_create(da_context context, uint32_t operation, const ui
         if (jobs.size() >= 64) return DA_RESOURCE_FAILURE;
         auto j = std::make_shared<Job>(); j->context = it->second;
         j->input.assign(reinterpret_cast<const char*>(input),length);
+        // Stable identity for the exact submitted bytes; editor revision is separate.
+        std::uint32_t fingerprint = 2166136261u;
+        for (const char byte : j->input) { fingerprint ^= static_cast<unsigned char>(byte); fingerprint *= 16777619u; }
+        j->input_revision = "fnv1a32-"+std::to_string(fingerprint);
         j->operation = operation; j->max_events = max_events; j->flags = flags;
         const auto id = token(); jobs.emplace(id,j); it->second->active = id; *out = id; return DA_OK;
     });
@@ -252,13 +275,36 @@ da_status DA_CALL da_job_execute(da_job id) {
             j = it->second; if (j->state != DA_PENDING) return DA_BUSY; j->state = DA_RUNNING;
         }
         try {
+            const auto execution_start = std::chrono::steady_clock::now();
             auto e = execute(*j,id);
+            const auto execution_end = std::chrono::steady_clock::now();
             Json metrics = Json::object(), events = Json::array(); std::uint64_t dropped = 0;
             if (e.doc.contains("stages")) {
                 for (const auto* stage : {"generation","routing","allocation"})
-                    if (e.doc["stages"].contains(stage)) extract(e.doc["stages"][stage],metrics,events,dropped);
+                    if (e.doc["stages"].contains(stage)) extract(e.doc["stages"][stage],metrics,events,dropped,1365);
             } else extract(e.doc,metrics,events,dropped);
-            auto text = e.doc.dump(2)+"\n"; auto metric_text = metrics.dump();
+            for(auto& event : events) { event["run_id"] = id; event["input_revision"] = j->input_revision; }
+            const auto serialization_start = std::chrono::steady_clock::now();
+            auto text = e.doc.dump(2)+"\n";
+            const auto serialization_end = std::chrono::steady_clock::now();
+            metrics["instrumentation"] = {{"schema_version",1},{"run_id",id},{"input_revision",j->input_revision},
+                {"execution_wall_us",std::chrono::duration<double,std::micro>(execution_end-execution_start).count()},
+                {"serialization_us",std::chrono::duration<double,std::micro>(serialization_end-serialization_start).count()},
+                {"timing_domain","wall_clock; stage timers include validation, tracing and cooperative yields; serialization is report JSON dump only"},
+                {"tracing_enabled",j->max_events != 0},{"detailed_trace",(j->flags&DA_DETAILED_TRACE)!=0},
+                {"engine_version",da::build_info().version},
+#ifdef NDEBUG
+                {"build_mode","release"},
+#else
+                {"build_mode","debug"},
+#endif
+#ifdef __EMSCRIPTEN__
+                {"environment","wasm-web-worker"},
+#else
+                {"environment","native"},
+#endif
+                {"trace_events",events.size()},{"trace_estimated_json_bytes",events.dump().size()}};
+            auto metric_text = metrics.dump();
             if (text.size() > max_report_bytes) throw std::bad_alloc();
             if (e.snapshot) e.snapshot->report = text;
             std::lock_guard<std::mutex> lock(registry);
@@ -270,7 +316,10 @@ da_status DA_CALL da_job_execute(da_job id) {
             j->report = std::move(text); j->metrics = std::move(metric_text);
             j->events = std::move(events); j->dropped = dropped;
             j->outcome = outcome_code(e.status.outcome);
-            if (e.status.ok() && e.snapshot) j->context->last = std::move(e.snapshot);
+            if (e.status.ok() && e.snapshot) {
+                if (j->operation == DA_SCENARIO) j->context->scenario = std::move(e.snapshot);
+                else { j->context->last = std::move(e.snapshot); j->context->scenario.reset(); }
+            }
             j->state = DA_FINISHED; j->stage = 6; return DA_OK;
         } catch (...) {
             const auto status = [&]() { try { throw; } catch (const std::bad_alloc&) { return DA_RESOURCE_FAILURE; } catch (...) { return DA_INTERNAL_ERROR; } }();
@@ -320,7 +369,7 @@ da_status DA_CALL da_job_trace(da_job id, uint32_t cursor, uint32_t count, uint8
         if (cursor > j.events.size()) return DA_INVALID_ARGUMENT;
         Json batch = Json::array(); const auto end = std::min(j.events.size(),static_cast<std::size_t>(cursor)+count);
         for (std::size_t i = cursor; i < end; ++i) batch.push_back(j.events[i]);
-        const Json doc = {{"job",id},{"events",batch},{"next_cursor",end},{"total",j.events.size()},
+        const Json doc = {{"schema_version",1},{"run_id",id},{"input_revision",j.input_revision},{"job",id},{"events",batch},{"next_cursor",end},{"total",j.events.size()},
             {"dropped_events",j.dropped},{"truncated",j.dropped != 0}};
         return copy(doc.dump(),buffer,capacity,required);
     });
@@ -345,11 +394,11 @@ da_status DA_CALL da_context_step(da_context id, da_job snapshot_job, int32_t x,
     int32_t dx, int32_t dy, int32_t* out_x, int32_t* out_y) {
     return guarded([&]() -> da_status {
         if (!out_x || !out_y) return DA_INVALID_ARGUMENT;
-        std::shared_ptr<const Snapshot> last;
+        std::shared_ptr<const Snapshot> last, scenario;
         {
             std::lock_guard<std::mutex> lock(registry);
             const auto it = contexts.find(id); if (it == contexts.end()) return DA_INVALID_HANDLE;
-            last = it->second->last;
+            last = it->second->scenario && it->second->scenario->job == snapshot_job ? it->second->scenario : it->second->last;
         }
         if (!last || !last->geometry) return DA_NOT_READY;
         if (last->job != snapshot_job) return DA_STALE_RESULT;

@@ -9,6 +9,7 @@ enum EngineOperation {
   edit,
   reallocate,
   generateDungeon,
+  scenario,
 }
 
 class EngineException implements Exception {
