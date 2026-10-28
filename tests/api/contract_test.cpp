@@ -9,6 +9,7 @@
 #include <thread>
 #include <chrono>
 #include <limits>
+#include <algorithm>
 using Json = nlohmann::json;
 namespace da = dungeon_architect;
 std::string read_file(const char* path) {
@@ -174,6 +175,115 @@ int main(int argc, char** argv) {
         CHECK(largeEdit["outcome"]=="success");
         std::cout<<"512x512 editor transaction + diagnostics: "<<std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-analysisStart).count()<<" ms\n";
         CHECK(read([&](uint8_t* p,uint32_t cap,uint32_t* len){return da_context_read(c,p,cap,len);}) == baseline);
+        // Phase 11: explicit room transactions preserve locks, IDs and prior output.
+        auto phase11 = *parsed_source.value;
+        auto roomJson = Json::parse(source)["source"]["rooms"][0];
+        roomJson["name"] = "Renamed entrance";
+        auto renamed = edit(phase11, {{"type","upsert_room"},{"room",roomJson}});
+        CHECK(renamed["outcome"] == "success");
+        auto renamedSource = da::project_io::parse(renamed["project_json"].get<std::string>());
+        CHECK(renamedSource.ok());
+        CHECK(renamedSource.value->rooms[0].id == phase11.rooms[0].id);
+        auto moved = roomJson; moved["bounds"]["x"] = 3;
+        CHECK(edit(*renamedSource.value, {{"type","upsert_room"},{"room",moved}})["outcome"] == "invalid_input");
+        moved["lock_position"] = false; moved["lock_size"] = false;
+        CHECK(edit(*renamedSource.value, {{"type","upsert_room"},{"room",moved}})["outcome"] == "invalid_input");
+        roomJson["lock_position"] = false; roomJson["lock_size"] = false;
+        auto unlocked = edit(*renamedSource.value, {{"type","upsert_room"},{"room",roomJson}});
+        CHECK(unlocked["outcome"] == "success");
+        const auto unlockedSource = da::project_io::parse(unlocked["project_json"].get<std::string>());
+        auto relocated = edit(*unlockedSource.value, {{"type","upsert_room"},{"room",moved}});
+        CHECK(relocated["outcome"] == "success");
+        auto removedRoom = edit(*unlockedSource.value, {{"type","remove_room"},{"id",roomJson["id"]}});
+        CHECK(removedRoom["outcome"] == "success");
+        CHECK(da::project_io::parse(removedRoom["project_json"].get<std::string>()).value->rooms.size() == 1);
+
+        // Inventory copies remain separate records; inactive catalogue entries are persisted.
+        auto packJson = Json::parse(source)["source"]["packs"][0];
+        packJson["id"] = "archer-copy"; packJson["active"] = false;
+        auto copied = edit(phase11, {{"type","upsert_pack"},{"pack",packJson}});
+        CHECK(copied["outcome"] == "success");
+        auto copiedSource = da::project_io::parse(copied["project_json"].get<std::string>());
+        CHECK(copiedSource.ok() && copiedSource.value->packs.size() == phase11.packs.size()+1);
+        CHECK(std::count_if(copiedSource.value->packs.begin(),copiedSource.value->packs.end(),[](const da::Pack& p){return p.active;}) == 4);
+        packJson["slots"] = 0;
+        CHECK(edit(*copiedSource.value, {{"type","upsert_pack"},{"pack",packJson}})["outcome"] == "invalid_input");
+        auto removedPack = edit(*copiedSource.value, {{"type","remove_pack"},{"id","archer-copy"}});
+        CHECK(removedPack["outcome"] == "success");
+        CHECK(da::project_io::parse(removedPack["project_json"].get<std::string>()).value->packs.size() == phase11.packs.size());
+        CHECK(read([&](uint8_t* p,uint32_t cap,uint32_t* len){return da_context_read(c,p,cap,len);}) == baseline);
+
+        // Reallocation must actually reuse geometry, including its exact floor and routes.
+        const auto reallocate = [&](const da::Project& p) {
+            const auto encoded=da::project_io::serialize(p); CHECK(encoded.ok());
+            const auto job=create(c,*encoded.value,DA_REALLOCATE);
+            CHECK(da_job_execute(job)==DA_OK); const auto result=Json::parse(report(job));
+            CHECK(da_job_release(job)==DA_OK); return result;
+        };
+        phase11.settings.threat_budget = 0;
+        const auto zeroBudget = reallocate(phase11);
+        CHECK(zeroBudget["outcome"] == "success" && zeroBudget["optimal"] == true);
+        CHECK(zeroBudget["geometry_reused"] == true);
+        CHECK(zeroBudget["stages"].size() == 1 && zeroBudget["stages"].contains("allocation"));
+        CHECK(zeroBudget["result"]["geometry"]["layers"] == doc["result"]["geometry"]["layers"]);
+        CHECK(zeroBudget["result"]["geometry"]["corridors"] == doc["result"]["geometry"]["corridors"]);
+        CHECK(zeroBudget["result"]["layout"] == doc["result"]["layout"]);
+        CHECK(zeroBudget["result"]["allocation"]["total_threat"] == 0);
+        CHECK(zeroBudget["result"]["allocation"]["total_score"] == 0);
+        phase11.settings.threat_budget = 3;
+        phase11.packs[0].score = 1000;
+        const auto rescored = reallocate(phase11);
+        CHECK(rescored["outcome"] == "success");
+        CHECK(rescored["result"]["allocation"]["total_score"].get<int>() >= 1000);
+        CHECK(rescored["result"]["geometry"]["layers"] == doc["result"]["geometry"]["layers"]);
+        auto geometryEdit = phase11; ++geometryEdit.settings.seed;
+        CHECK(reallocate(geometryEdit)["outcome"] == "stale_result");
+        geometryEdit = phase11; geometryEdit.allowed_mask[0] = 0;
+        CHECK(reallocate(geometryEdit)["outcome"] == "stale_result");
+        for(int i=0;i<11;++i) { auto copy=phase11.packs[0]; copy.id="inventory-copy-"+std::to_string(i); phase11.packs.push_back(copy); }
+        CHECK(reallocate(phase11)["outcome"] == "unsupported_size");
+        CHECK(Json::parse(read([&](uint8_t* p,uint32_t cap,uint32_t* len){return da_context_read(c,p,cap,len);})) == rescored);
+        for(auto& p:phase11.packs) if(p.id.find("inventory-copy-")==0) p.active=false;
+        const auto inactiveCatalogue = reallocate(phase11);
+        CHECK(inactiveCatalogue["outcome"] == "success");
+        CHECK(inactiveCatalogue["result"]["allocation"]["total_score"] == rescored["result"]["allocation"]["total_score"]);
+        phase11.rooms[1].name = "Edited exit";
+        phase11.rooms[1].tags.push_back("edited");
+        phase11.rooms[1].capacity_override = 0;
+        const auto metadataOnly = reallocate(phase11);
+        CHECK(metadataOnly["outcome"] == "success");
+        CHECK(metadataOnly["result"]["geometry"]["layers"] == doc["result"]["geometry"]["layers"]);
+        CHECK(metadataOnly["result"]["geometry"]["corridors"] == doc["result"]["geometry"]["corridors"]);
+        CHECK(metadataOnly["result"]["allocation"]["total_score"] == 0);
+        bool foundEditedExit = false;
+        for(const auto& r:metadataOnly["result"]["layout"]["rooms"]) if(r["id"] == phase11.rooms[1].id) {
+            CHECK(r["name"] == "Edited exit"); CHECK(r["capacity_override"] == 0);
+            CHECK(std::find(r["tags"].begin(),r["tags"].end(),"edited") != r["tags"].end());
+            foundEditedExit = true;
+        }
+        CHECK(foundEditedExit);
+        for(const auto& r:metadataOnly["result"]["geometry"]["rooms"]) if(r["id"] == phase11.rooms[1].id) {
+            CHECK(r["capacity"] == 0);
+            for(const auto& original:doc["result"]["geometry"]["rooms"]) if(original["id"] == r["id"])
+                CHECK(r["spawn_positions"] == original["spawn_positions"]);
+        }
+        const auto metadataSource = da::project_io::serialize(phase11);
+        j=create(c,*metadataSource.value,DA_REALLOCATE);
+        CHECK(da_job_cancel(j) == DA_OK); CHECK(da_job_execute(j) == DA_OK);
+        CHECK(Json::parse(report(j))["outcome"] == "cancelled"); CHECK(da_job_release(j) == DA_OK);
+        CHECK(Json::parse(read([&](uint8_t* p,uint32_t cap,uint32_t* len){return da_context_read(c,p,cap,len);})) == metadataOnly);
+        CHECK(reallocate(phase11)["outcome"] == "success");
+        for(auto& p:phase11.packs) p.active=true;
+        const auto catalogueSource=da::project_io::serialize(phase11); CHECK(catalogueSource.ok());
+        j=create(c,*catalogueSource.value,DA_GENERATE_DUNGEON);
+        CHECK(da_job_execute(j)==DA_OK);
+        const auto geometryOnly=Json::parse(report(j)); CHECK(da_job_release(j)==DA_OK);
+        CHECK(geometryOnly["outcome"]=="success" && geometryOnly["optimal"]==false);
+        CHECK(geometryOnly["result"]["allocation"].is_null());
+        CHECK(geometryOnly["result"]["geometry"]["connected_floor_verified"]==true);
+        CHECK(reallocate(phase11)["outcome"]=="unsupported_size");
+        for(auto& p:phase11.packs) if(p.id.find("inventory-copy-")==0) p.active=false;
+        CHECK(reallocate(phase11)["outcome"]=="success");
         CHECK(da_context_release(c) == DA_OK); CHECK(da_context_release(c) == DA_INVALID_HANDLE);
         for (int i = 0; i < 40; ++i) {
             CHECK(da_context_create(1,1,&c) == DA_OK); j = create(c,source,DA_VALIDATE);

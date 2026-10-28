@@ -97,7 +97,10 @@ class Engine {
                 .toDart)
             .toDart;
     final result = EngineResult(raw, _decode(raw));
-    if (result.succeeded && operation.index >= 1 && operation.index <= 4) {
+    if (result.succeeded &&
+        ((operation.index >= 1 && operation.index <= 4) ||
+            operation == EngineOperation.reallocate ||
+            operation == EngineOperation.generateDungeon)) {
       lastResult = result;
     }
     return result;

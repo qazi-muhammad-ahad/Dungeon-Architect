@@ -7,6 +7,8 @@ enum EngineOperation {
   normalize,
   newProject,
   edit,
+  reallocate,
+  generateDungeon,
 }
 
 class EngineException implements Exception {

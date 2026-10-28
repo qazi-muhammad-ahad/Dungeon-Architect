@@ -1,7 +1,7 @@
 # Dungeon Architect - App Implementation TODO
 
 Created: 2026-10-10
-Status: Phases 00-10 complete under the approved Chrome-first scope (2026-10-13). Native Dart FFI/mobile/Windows app packaging remain deferred.
+Status: Phases 00-11 complete under the approved Chrome-first scope (2026-10-25). Native Dart FFI/mobile/Windows app packaging remain deferred.
 Scope: Application engineering only. Product decisions are recorded in [plan.md](plan.md).
 
 ## How to use this backlog
@@ -264,21 +264,23 @@ Exit checks:
 
 Dependencies: Phase 10.
 
-- [ ] P11.01 Add runtime total room count, room size ranges, corridor width, margin, and seed controls.
-- [ ] P11.02 Implement fixed-room draw/select/move/resize previews with lock toggles and explicit commit.
-- [ ] P11.03 Add room naming, roles, compatibility tags, capacity, and valid-position inspection.
-- [ ] P11.04 Prevent locked-room edits until explicitly unlocked; keep stable IDs across regeneration.
-- [ ] P11.05 Add the encounter catalogue with create/edit/duplicate/remove and unique inventory-copy IDs.
-- [ ] P11.06 Make threat, designer score, slots, compatibility, and minimum room dimensions editable with clear units.
-- [ ] P11.07 Separate saved catalogue entries from the active inventory used by optimization.
-- [ ] P11.08 Show active-pack count and supported exact-solve limit before execution.
-- [ ] P11.09 Add global threat-budget control and Generate/Optimize actions.
-- [ ] P11.10 Highlight assignments, room slot use, score, threat use, and unused packs on successful optimization.
-- [ ] P11.11 Support geometry reuse for allocation-only edits and show which outputs need recomputation.
-- [ ] P11.12 Test a complete draw -> fix room -> generate -> edit pack -> optimize -> save -> reopen workflow.
+- [x] P11.01 Add runtime total room count, room size ranges, corridor width, margin, and seed controls.
+- [x] P11.02 Implement fixed-room draw/select/move/resize previews with lock toggles and explicit commit.
+- [x] P11.03 Add room naming, roles, compatibility tags, capacity, and valid-position inspection.
+- [x] P11.04 Prevent locked-room edits until explicitly unlocked; keep stable IDs across regeneration.
+- [x] P11.05 Add the encounter catalogue with create/edit/duplicate/remove and unique inventory-copy IDs.
+- [x] P11.06 Make threat, designer score, slots, compatibility, and minimum room dimensions editable with clear units.
+- [x] P11.07 Separate saved catalogue entries from the active inventory used by optimization.
+- [x] P11.08 Show active-pack count and supported exact-solve limit before execution.
+- [x] P11.09 Add global threat-budget control and Generate/Optimize actions.
+- [x] P11.10 Highlight assignments, room slot use, score, threat use, and unused packs on successful optimization.
+- [x] P11.11 Support geometry reuse for allocation-only edits and show which outputs need recomputation.
+- [x] P11.12 Test a complete draw -> fix room -> generate -> edit pack -> optimize -> save -> reopen workflow.
 
 Exit checks:
-- [ ] The main project inputs are editable without JSON hand-editing, and invalid edits cannot corrupt a valid snapshot.
+- [x] The main project inputs are editable without JSON hand-editing, and invalid edits cannot corrupt a valid snapshot.
+
+Evidence (2026-10-25): runtime generation inputs, validated room previews/locks/details, catalogue CRUD and active inventory, exact-limit feedback, generation-only and allocation-only actions, assignment/unused-pack display, and dependency-aware reuse implemented. Native Release build and 18/18 CTest suites passed; final extended API contract passed after its last additions. Flutter analyzer clean; 27/27 Flutter tests passed. Wasm and CSP release web builds plus deployment artifact verification passed. Real Chrome phase 11 workflow and phase 10 canvas regression passed; workflow screenshot inspected. Source-save/reopen intentionally regenerates derived output; room/catalogue edits are outside mask undo history. See [room and encounter editor](docs/room_encounter_editor.md).
 
 ## Phase 12 - Implement Analyze visualization and trace playback
 

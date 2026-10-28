@@ -71,7 +71,25 @@ inline Response execute(const std::string& raw) {
         ProjectSession session; auto status=session.replace_loaded(*parsed.value);
         if(!status.ok()) return finish(status);
         const auto& c=envelope.at("command"); const auto type=c.at("type").get<std::string>();
-        if(type=="fix_room") {
+        if(type=="upsert_room" || type=="upsert_pack" || type=="remove_room" || type=="remove_pack") {
+            // Parse the proposed record through the shared schema, then apply it
+            // against the previous source so lock checks cannot be bypassed.
+            const bool room=type=="upsert_room"||type=="remove_room";
+            const bool remove=type=="remove_room"||type=="remove_pack";
+            const auto key=room?"rooms":"packs";
+            auto document=Json::parse(envelope.at("project_json").get<std::string>());
+            auto& records=document["source"][key];
+            const auto id=remove?c.at("id").get<std::string>():c.at(room?"room":"pack").at("id").get<std::string>();
+            auto it=std::find_if(records.begin(),records.end(),[&](const Json& v){return v.at("id")==id;});
+            if(remove) {
+                if(it==records.end()) return invalid("No record has the requested ID.");
+                records.erase(it);
+            } else if(it==records.end()) records.push_back(c.at(room?"room":"pack"));
+            else *it=c.at(room?"room":"pack");
+            const auto candidate=project_io::parse(document.dump());
+            if(!candidate.ok()) return finish(candidate.status);
+            status=session.update(*candidate.value);
+        } else if(type=="fix_room") {
             const auto& value=c.at("room"); const auto id=value.at("id").get<std::string>();
             auto candidate=session.project();
             auto it=std::find_if(candidate.rooms.begin(),candidate.rooms.end(),[&](const Room& r){return r.id==id;});
@@ -82,7 +100,13 @@ inline Response execute(const std::string& raw) {
             } else {
                 Room room;
                 if(it!=candidate.rooms.end()) room=*it;
-                else { room.id=id; room.name=value.value("name",id); }
+                else {
+                    room.id=id; room.name=value.value("name",id);
+                    const auto role=value.value("role",std::string("normal"));
+                    room.role=role=="entrance"?RoomRole::entrance:role=="exit"?RoomRole::exit:role=="boss"?RoomRole::boss:RoomRole::normal;
+                    room.tags=value.value("tags",std::vector<std::string>{});
+                    if(value.contains("capacity_override")&&!value["capacity_override"].is_null()) room.capacity_override=value["capacity_override"].get<int>();
+                }
                 const auto& b=value.at("bounds");
                 room.bounds={integer(b,"x",0,511),integer(b,"y",0,511),integer(b,"width",1,512),integer(b,"height",1,512)};
                 room.lock_position=true; room.lock_size=true;

@@ -23,6 +23,8 @@ class ProjectController extends ChangeNotifier {
       resultRevision = -1,
       activeRevision = -1;
   int geometryRevision = 0, allocationRevision = 0;
+  int resultGeometryRevision = -1;
+  static const exactPackLimit = 14;
   String? selectedRoom;
   EditorView view = EditorView.design;
   RunState state = RunState.idle;
@@ -33,6 +35,8 @@ class ProjectController extends ChangeNotifier {
   Map<String, dynamic> editorAnalysis = {};
   bool canvasDraft = false;
   final Map<String, String> fieldErrors = {};
+  Map<String, dynamic>? _settingsDraft;
+  final Set<String> _settingsValidationErrors = {};
   final List<String> log = [];
   Future<void> _queue = Future.value();
   Timer? _timer;
@@ -62,10 +66,50 @@ class ProjectController extends ChangeNotifier {
       document?['source'] as Map<String, dynamic>? ?? {};
   Map<String, dynamic> get settings =>
       source['settings'] as Map<String, dynamic>? ?? {};
+  dynamic settingValue(String key) {
+    const ranges = {
+      'min_room_width': ('room_width', 0),
+      'max_room_width': ('room_width', 1),
+      'min_room_height': ('room_height', 0),
+      'max_room_height': ('room_height', 1),
+    };
+    final range = ranges[key];
+    return range == null
+        ? settings[key]
+        : (settings[range.$1] as List?)?[range.$2];
+  }
+
   Map<String, dynamic>? get payload =>
       result?.document['result'] as Map<String, dynamic>?;
   List<dynamic> get rooms =>
       payload?['layout']?['rooms'] as List<dynamic>? ?? [];
+  List<dynamic> get catalogue => source['packs'] as List? ?? [];
+  int get activePackCount => catalogue.where((p) => p['active'] == true).length;
+  bool get geometryCurrent =>
+      result != null && resultGeometryRevision == geometryRevision;
+  bool get canOptimize =>
+      canRun && geometryCurrent && activePackCount <= exactPackLimit;
+  Map<String, dynamic>? get allocation =>
+      payload?['allocation'] as Map<String, dynamic>?;
+  List<dynamic> get editableRooms {
+    final byId = <String, dynamic>{for (final r in rooms) r['id'] as String: r};
+    for (final r in source['rooms'] as List? ?? []) {
+      byId[r['id'] as String] = r;
+    }
+    return byId.values.toList();
+  }
+
+  String _nextId(String prefix, Iterable<dynamic> records) {
+    final ids = records.map((r) => r['id']).toSet();
+    var n = 1;
+    while (ids.contains('$prefix-$n')) {
+      n++;
+    }
+    return '$prefix-$n';
+  }
+
+  String nextRoomId() => _nextId('room', editableRooms);
+  String nextPackId() => _nextId('pack', catalogue);
   void _notify() {
     if (!disposed) notifyListeners();
   }
@@ -155,8 +199,11 @@ class ProjectController extends ChangeNotifier {
       validatedRevision = revision;
       result = null;
       resultRevision = -1;
+      resultGeometryRevision = -1;
       selectedRoom = null;
       fieldErrors.clear();
+      _settingsDraft = null;
+      _settingsValidationErrors.clear();
       state = RunState.idle;
       note(
         fresh ? 'New project. Generate a layout to begin.' : 'Opened $name.',
@@ -203,32 +250,58 @@ class ProjectController extends ChangeNotifier {
       return;
     }
     fieldErrors.remove(key);
-    settings[key] = value <= BigInt.from(9007199254740991)
+    final candidate = decodeExact(
+      encodeExact(_settingsDraft ?? decodeExact(canonical)),
+    ) as Map<String, dynamic>;
+    final number = value <= BigInt.from(9007199254740991)
         ? value.toInt()
         : value;
+    const ranges = {
+      'min_room_width': ('room_width', 0),
+      'max_room_width': ('room_width', 1),
+      'min_room_height': ('room_height', 0),
+      'max_room_height': ('room_height', 1),
+    };
+    final range = ranges[key];
+    if (range == null) {
+      candidate['source']['settings'][key] = number;
+    } else {
+      candidate['source']['settings'][range.$1][range.$2] = number;
+    }
+    _settingsDraft = candidate;
     if (!busy) state = result == null ? RunState.idle : RunState.stale;
-    _validateDraft();
+    _validateDraft(candidate: candidate, settingKey: key);
   }
 
   void rename(String name) {
     if (document == null || loading || canvasDraft || source['name'] == name) {
       return;
     }
-    source['name'] = name;
+    final candidate = decodeExact(
+      encodeExact(_settingsDraft ?? document),
+    ) as Map<String, dynamic>;
+    candidate['source']['name'] = name;
+    _settingsDraft = candidate;
     revision++;
     if (!busy) state = result == null ? RunState.idle : RunState.stale;
-    _validateDraft();
+    _validateDraft(candidate: candidate);
   }
 
-  void _validateDraft() {
-    final stamp = revision, raw = encodeExact(document);
+  void _validateDraft({Map<String, dynamic>? candidate, String? settingKey}) {
+    final stamp = revision, raw = encodeExact(candidate ?? document);
     validating = true;
     _notify();
     _normalize(raw)
         .then((checked) {
           if (disposed || revision != stamp) return;
           if (checked.succeeded) {
+            for (final key in _settingsValidationErrors) {
+              fieldErrors.remove(key);
+            }
+            _settingsValidationErrors.clear();
+            _settingsDraft = null;
             canonical = checked.document['project_json'] as String;
+            document = decodeExact(canonical) as Map<String, dynamic>;
             editorAnalysis =
                 checked.document['editor_analysis'] as Map<String, dynamic>? ??
                 {};
@@ -244,6 +317,10 @@ class ProjectController extends ChangeNotifier {
                 ? 'Settings updated. Run to refresh the result.'
                 : 'Check the highlighted settings.';
           } else {
+            if (settingKey != null) {
+              fieldErrors[settingKey] = _problem(checked);
+              _settingsValidationErrors.add(settingKey);
+            }
             if (!busy) state = RunState.invalid;
             message = _problem(checked);
           }
@@ -262,8 +339,14 @@ class ProjectController extends ChangeNotifier {
         });
   }
 
-  Future<void> run() async {
+  Future<void> run({bool geometryOnly = false}) async {
     if (!canRun) return;
+    if (!geometryOnly && activePackCount > exactPackLimit) {
+      note(
+        'Exact optimization supports at most $exactPackLimit active packs. Deactivate catalogue entries or use Generate only.',
+      );
+      return;
+    }
     final stamp = revision;
     activeRevision = stamp;
     state = RunState.running;
@@ -297,7 +380,12 @@ class ProjectController extends ChangeNotifier {
         final seed = (startSeed + searchAttempt - 1) % 4294967296;
         draft['source']['settings']['seed'] = seed;
         winningSource = searchAttempt == 1 ? canonical : encodeExact(draft);
-        next = await engine.run(winningSource);
+        next = geometryOnly
+            ? await engine.run(
+                winningSource,
+                operation: EngineOperation.generateDungeon,
+              )
+            : await engine.run(winningSource);
         if (disposed ||
             revision != stamp ||
             state == RunState.cancelling ||
@@ -352,10 +440,11 @@ class ProjectController extends ChangeNotifier {
         }
         result = next;
         resultRevision = revision;
+        resultGeometryRevision = geometryRevision;
         state = RunState.successful;
         if (!rooms.any((r) => r['id'] == selectedRoom)) selectedRoom = null;
         note(
-          'Completed. Exact allocation verified. First valid solution after $searchAttempt candidate${searchAttempt == 1 ? '' : 's'}; seed ${settings['seed']}.',
+          'Completed. ${geometryOnly ? 'Geometry verified; Optimize to allocate encounters.' : 'Exact allocation verified.'} First valid solution after $searchAttempt candidate${searchAttempt == 1 ? '' : 's'}; seed ${settings['seed']}.',
         );
       } else {
         state = next.document['outcome'] == 'invalid_input'
@@ -388,6 +477,121 @@ class ProjectController extends ChangeNotifier {
         r['id'] == id && (r['lock_position'] == true || r['lock_size'] == true),
   );
   bool get selectedRoomFixed => roomFixed(selectedRoom);
+
+  Future<bool> _editRecord(
+    Map<String, dynamic> command, {
+    bool geometry = false,
+  }) async {
+    if (!canRun) return false;
+    final stamp = revision;
+    setCanvasDraft(true);
+    try {
+      final checked = await previewCanvas(command);
+      if (!checked.succeeded) {
+        note('Edit rejected: ${_problem(checked)}');
+        return false;
+      }
+      return commitCanvas(checked, stamp, geometry: geometry);
+    } catch (e) {
+      note('Edit failed: $e');
+      return false;
+    } finally {
+      setCanvasDraft(false);
+    }
+  }
+
+  Future<bool> savePack(Map<String, dynamic> pack) =>
+      _editRecord({'type': 'upsert_pack', 'pack': pack});
+  Future<bool> removePack(String id) =>
+      _editRecord({'type': 'remove_pack', 'id': id});
+  Future<bool> duplicatePack(String id) async {
+    final matches = catalogue.where((p) => p['id'] == id);
+    if (matches.isEmpty) return false;
+    final pack =
+        decodeExact(encodeExact(matches.first)) as Map<String, dynamic>;
+    pack['id'] = nextPackId();
+    pack['name'] = '${pack['name']} copy';
+    return savePack(pack);
+  }
+
+  Future<bool> saveRoom(Map<String, dynamic> room) {
+    final matches = (source['rooms'] as List? ?? []).where(
+      (r) => r['id'] == room['id'],
+    );
+    final old = matches.isEmpty ? null : matches.first;
+    final geometry =
+        old == null ||
+        encodeExact(old['bounds']) != encodeExact(room['bounds']) ||
+        old['role'] != room['role'] ||
+        old['lock_position'] != room['lock_position'] ||
+        old['lock_size'] != room['lock_size'];
+    return _editRecord({
+      'type': 'upsert_room',
+      'room': room,
+    }, geometry: geometry);
+  }
+
+  Future<bool> removeRoom(String id) =>
+      _editRecord({'type': 'remove_room', 'id': id}, geometry: true);
+  Future<bool> unlockRoom(String id) async {
+    final matches = (source['rooms'] as List? ?? []).where(
+      (r) => r['id'] == id,
+    );
+    if (matches.isEmpty) return false;
+    final room = Map<String, dynamic>.from(matches.first as Map);
+    room['lock_position'] = false;
+    room['lock_size'] = false;
+    return saveRoom(room);
+  }
+
+  Future<void> optimize() async {
+    if (!canOptimize) {
+      note(
+        activePackCount > exactPackLimit
+            ? 'Exact optimization supports at most $exactPackLimit active packs; deactivate entries first.'
+            : 'Generate a current dungeon before optimizing.',
+      );
+      return;
+    }
+    final stamp = revision;
+    activeRevision = stamp;
+    state = RunState.running;
+    stage = 'Optimizing encounters';
+    note('Optimizing encounters using the existing geometry…');
+    try {
+      final next = await engine.run(
+        canonical,
+        operation: EngineOperation.reallocate,
+      );
+      if (disposed) return;
+      if (revision != stamp) {
+        state = RunState.stale;
+        note('Input changed; optimization was not applied.');
+      } else if (state == RunState.cancelling ||
+          next.document['outcome'] == 'cancelled') {
+        state = stale ? RunState.stale : RunState.idle;
+        note('Cancelled. The last valid result was kept.');
+      } else if (next.succeeded) {
+        result = next;
+        resultRevision = revision;
+        resultGeometryRevision = geometryRevision;
+        state = RunState.successful;
+        note('Completed. Geometry reused; exact allocation verified.');
+      } else {
+        state = RunState.failed;
+        note('Optimization failed: ${_problem(next)}');
+      }
+    } catch (e) {
+      if (!disposed) {
+        state = RunState.failed;
+        note('Optimization failed: $e');
+      }
+    } finally {
+      activeRevision = -1;
+      stage = '';
+      _notify();
+    }
+  }
 
   Future<void> setRoomFixed(bool fixed) async {
     if (!canRun || (fixed && stale) || selectedRoom == null) return;
@@ -427,7 +631,7 @@ class ProjectController extends ChangeNotifier {
     EngineOperation.edit,
   );
   Future<EngineResult> validateCanvasSource(String raw) => _normalize(raw);
-  bool commitCanvas(EngineResult checked, int stamp) {
+  bool commitCanvas(EngineResult checked, int stamp, {bool geometry = true}) {
     if (!checked.succeeded || stamp != revision || disposed) return false;
     final text = checked.document['project_json'] as String;
     editorAnalysis =
@@ -436,13 +640,17 @@ class ProjectController extends ChangeNotifier {
       document = decodeExact(text) as Map<String, dynamic>;
       canonical = text;
       revision++;
-      geometryRevision++;
+      if (geometry) geometryRevision++;
       allocationRevision++;
       validatedRevision = revision;
       if (!busy) state = result == null ? RunState.idle : RunState.stale;
     }
     note(
-      'Canvas updated. ${result == null ? 'Ready to generate.' : 'Previous result is stale.'}',
+      'Project updated. ${result == null
+          ? 'Ready to generate.'
+          : geometryCurrent
+          ? 'Geometry current; Optimize to refresh allocation.'
+          : 'Geometry stale; Generate to refresh.'}',
     );
     return true;
   }

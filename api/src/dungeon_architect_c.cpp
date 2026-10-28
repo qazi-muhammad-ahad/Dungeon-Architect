@@ -23,6 +23,7 @@ struct Snapshot {
     std::string report;
     da::Project source;
     std::optional<da::GeometrySnapshot> geometry;
+    std::optional<da::RoomLayoutSnapshot> layout;
     da_job job = 0;
 };
 struct Context { da_job active = 0; std::shared_ptr<const Snapshot> last; };
@@ -108,7 +109,43 @@ Execution execute(Job& j, da_job id) {
         if (source.ok()) { e.doc["project_json"] = *source.value; e.doc["editor_analysis"] = da::editor_api::analysis(p); }
         return e;
     }
-    if (j.operation == DA_VALIDATE) {
+    if (j.operation == DA_REALLOCATE) {
+        const auto previous=j.context->last;
+        auto stale=da::failure(da::Outcome::stale_result,"geometry_stale","/source",
+            "Generate a current dungeon before optimizing encounters.","Geometry inputs changed or no routed layout is retained.");
+        if(!previous||!previous->geometry||!previous->layout) return {stale,report::error_json(stale,"allocation"),{}};
+        da::ProjectSession dependencies;
+        auto status=dependencies.replace_loaded(previous->source);
+        const auto before=dependencies.revisions().geometry;
+        if(status.ok()) status=dependencies.update(p);
+        if(!status.ok()) return {status,report::error_json(status,"allocation"),{}};
+        if(dependencies.revisions().geometry!=before) return {stale,report::error_json(stale,"allocation"),{}};
+        j.stage=4;
+        da::AllocationOptions options; options.max_events=j.max_events; options.cancelled=cancelled;
+        options.detailed_trace=(j.flags&DA_DETAILED_TRACE)!=0;
+        da::GenerationResult generated; generated.layout=previous->layout;
+        da::RoutingResult routed; routed.geometry=previous->geometry;
+        for(auto& room:generated.layout->rooms) for(const auto& updated:p.rooms) if(room.id==updated.id) {
+            room.name=updated.name; room.tags=updated.tags; room.capacity_override=updated.capacity_override;
+        }
+        for(auto& placed:routed.geometry->rooms) {
+            const auto room=std::find_if(generated.layout->rooms.begin(),generated.layout->rooms.end(),[&](const da::Room& r){return r.id==placed.id;});
+            if(room!=generated.layout->rooms.end()) placed.capacity=placed.id==routed.geometry->entrance_room?0:room->capacity_override.value_or(static_cast<int>(placed.spawn_positions.size()));
+        }
+        auto allocated=da::allocate_encounters(p,*generated.layout,*routed.geometry,options);
+        e.status=allocated.status; e.doc=report::error_json(e.status,"pipeline");
+        e.doc["geometry_reused"]=true; e.doc["optimal"]=allocated.ok();
+        e.doc["stages"]={{"allocation",report::allocation_json(p,allocated)}};
+        e.doc["stages"]["allocation"].erase("allocation");
+        if(allocated.ok()) {
+            e.doc["result"]={{"layout",report::layout_json(p,generated)["layout"]},
+                {"geometry",report::geometry_json(p,routed)["geometry"]},
+                {"allocation",report::allocation_json(p,allocated)["allocation"]}};
+            e.snapshot=std::make_shared<Snapshot>(*previous);
+            e.snapshot->layout=std::move(generated.layout);
+            e.snapshot->geometry=std::move(routed.geometry);
+        }
+    } else if (j.operation == DA_VALIDATE) {
         e.status = da::validate_project(p);
         e.doc = Json::parse(io::diagnostics_json(e.status));
     } else {
@@ -132,16 +169,17 @@ Execution execute(Job& j, da_job id) {
             e.status = allocated->status; e.doc = report::allocation_json(p,*allocated);
             stages["allocation"] = e.doc; stages["allocation"].erase("allocation");
         }
-        if (j.operation == DA_RUN) {
+        if (j.operation == DA_RUN || j.operation == DA_GENERATE_DUNGEON) {
             const auto failed = e.status.ok() ? Json(nullptr) : e.doc["stage"];
             e.doc = report::error_json(e.status,"pipeline"); e.doc["failed_stage"] = failed;
-            e.doc["stages"] = std::move(stages); e.doc["seed"] = p.settings.seed; e.doc["optimal"] = e.status.ok();
+            e.doc["stages"] = std::move(stages); e.doc["seed"] = p.settings.seed; e.doc["optimal"] = e.status.ok() && allocated.has_value();
             if (e.status.ok()) e.doc["result"] = {{"layout",report::layout_json(p,generated)["layout"]},
                 {"geometry",report::geometry_json(p,*routed)["geometry"]},
-                {"allocation",report::allocation_json(p,*allocated)["allocation"]}};
+                {"allocation",allocated?report::allocation_json(p,*allocated)["allocation"]:Json(nullptr)}};
         }
         if (e.status.ok()) {
             e.snapshot = std::make_shared<Snapshot>();
+            e.snapshot->layout = std::move(generated.layout);
             if (routed) e.snapshot->geometry = std::move(routed->geometry);
         }
     }
@@ -149,7 +187,7 @@ Execution execute(Job& j, da_job id) {
     if (e.status.ok() && j.operation != DA_VALIDATE) {
         auto source = io::serialize(p);
         if (!source.ok()) return {source.status,report::error_json(source.status,"export"),{}};
-        if (j.operation == DA_RUN) e.doc["result"]["source_project"] = Json::parse(*source.value);
+        if (j.operation == DA_RUN || j.operation == DA_REALLOCATE || j.operation == DA_GENERATE_DUNGEON) e.doc["result"]["source_project"] = Json::parse(*source.value);
         else e.doc["source_project"] = Json::parse(*source.value);
         e.snapshot->source = p; e.snapshot->job = id;
     }
@@ -193,8 +231,8 @@ da_status DA_CALL da_job_create(da_context context, uint32_t operation, const ui
     *out = 0;
     return guarded([&]() -> da_status {
         if (!input || !length || length > DA_MAX_INPUT_BYTES || max_events > 4096 ||
-            operation < DA_VALIDATE || operation > DA_EDIT || flags > DA_DETAILED_TRACE ||
-            (flags && operation != DA_OPTIMIZE && operation != DA_RUN)) return DA_INVALID_ARGUMENT;
+            operation < DA_VALIDATE || operation > DA_GENERATE_DUNGEON || flags > DA_DETAILED_TRACE ||
+            (flags && operation != DA_OPTIMIZE && operation != DA_RUN && operation != DA_REALLOCATE)) return DA_INVALID_ARGUMENT;
         std::lock_guard<std::mutex> lock(registry);
         const auto it = contexts.find(context); if (it == contexts.end()) return DA_INVALID_HANDLE;
         if (it->second->active) return DA_BUSY;

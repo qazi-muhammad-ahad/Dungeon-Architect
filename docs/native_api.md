@@ -33,8 +33,15 @@ user's Chrome-first decision on 2026-10-12.
   made safe by this C interface.
 - Operations: `DA_VALIDATE`, `DA_GENERATE` (rooms), `DA_ROUTE` (walkable geometry),
   `DA_OPTIMIZE`, `DA_RUN` (combined report). Optimize currently runs the complete
-  pipeline, just like the CLI command. Allocation-only geometry reuse remains
-  available in the underlying C++ API; the frontend editing workflow is Phase 11.
+  pipeline, just like the CLI command. `DA_REALLOCATE` (9) instead reuses the
+  same context's last successful routed layout. It returns a pipeline-shaped
+  report with `geometry_reused: true`, fresh exact allocation and refreshed room
+  metadata. Geometry dependencies are compared by the shared C++ session rules;
+  changed settings, mask, room bounds/roles/locks require generation first.
+  Failures and cancellations preserve the previous retained snapshot.
+  `DA_GENERATE_DUNGEON` (10) generates rooms and corridors without allocation,
+  returning a pipeline-shaped result with `allocation: null` and `optimal: false`.
+  This remains available when the saved active inventory exceeds the exact cap.
 - Phase 09 adds `DA_NORMALIZE` (6), returning native-validated canonical source,
   and `DA_NEW_PROJECT` (7), returning shared native defaults. Their reports include
   `project_json` as a string. These source-only operations never replace retained
@@ -44,8 +51,14 @@ user's Chrome-first decision on 2026-10-12.
   It and normalization/New return native editor diagnostic layers. See
   [Design canvas API and verification](design_canvas.md). Edits preserve retained
   generated output, including when a fixed-room conflict rejects the change.
+- Phase 11 extends `DA_EDIT` with `upsert_room` (`room` record), `upsert_pack`
+  (`pack` record), `remove_room` and `remove_pack` (`id`). Records use the existing
+  source schema. Shared parsing and transactional `ProjectSession::update`
+  validate the whole candidate; a geometry change cannot unlock and edit a
+  previously locked room in one transaction. Unlock in a separate edit first.
+  Inactive packs remain saved catalogue entries. See [room and encounter editing](room_encounter_editor.md).
 - The caller selects 0–4096 retained events per stage. Only optimize/run accept
-  `DA_DETAILED_TRACE`; the core enforces its small-input limit. Work, time, seed,
+  `DA_DETAILED_TRACE` (also supported by reallocate); the core enforces its small-input limit. Work, time, seed,
   room, budget and corridor settings come from the supplied source document.
 - `da_job_execute` runs once and blocks its calling native thread. Use a worker
   thread, not a UI thread. No registry mutex is held during engine execution.

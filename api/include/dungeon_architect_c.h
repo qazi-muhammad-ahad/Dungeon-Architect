@@ -48,6 +48,11 @@ typedef uint32_t da_status;
 #define DA_NORMALIZE 6u
 #define DA_NEW_PROJECT 7u
 #define DA_EDIT 8u
+#define DA_REALLOCATE 9u
+#define DA_GENERATE_DUNGEON 10u
+/* REALLOCATE requires this context's retained routed layout and unchanged
+ * geometry dependencies. Returns a pipeline report without regenerating.
+ * GENERATE_DUNGEON returns a pipeline report with geometry and no allocation. */
 /* EDIT accepts {project_json:string,command:object}; returns canonical source and
  * editor_analysis. Transactions preserve source room locks and retained output. */
 /* NORMALIZE validates/canonicalizes source; NEW_PROJECT returns core defaults.

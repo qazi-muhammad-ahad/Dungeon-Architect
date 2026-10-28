@@ -22,6 +22,9 @@ enum CanvasTool {
   rectangle,
   ellipse,
   lShape,
+  room,
+  moveRoom,
+  resizeRoom,
 }
 
 class DungeonPreview extends StatefulWidget {
@@ -55,6 +58,7 @@ class _DungeonPreviewState extends State<DungeonPreview> {
   Map<String, dynamic>? previewSource;
   int previewRevision = -1;
   List<dynamic> errors = [];
+  Map<String, dynamic>? dragRoom;
   ProjectController get c => widget.controller;
   int get columns => c.settings['columns'] as int? ?? 150;
   int get rows => c.settings['rows'] as int? ?? 150;
@@ -66,7 +70,10 @@ class _DungeonPreviewState extends State<DungeonPreview> {
       c.fieldErrors.isEmpty &&
       !waiting &&
       pending == null;
-  bool get shape => tool.index >= CanvasTool.rectangle.index;
+  bool get shape =>
+      tool.index >= CanvasTool.rectangle.index &&
+      tool.index <= CanvasTool.lShape.index;
+  bool get roomTool => tool.index >= CanvasTool.room.index;
   @override
   void dispose() {
     focus.dispose();
@@ -84,6 +91,7 @@ class _DungeonPreviewState extends State<DungeonPreview> {
     start = null;
     last = null;
     errors = [];
+    dragRoom = null;
     c.setCanvasDraft(false);
     refresh();
   }
@@ -126,7 +134,7 @@ class _DungeonPreviewState extends State<DungeonPreview> {
     if (point == null) return;
     if (!design || tool == CanvasTool.select) {
       String? id;
-      for (final room in c.rooms) {
+      for (final room in c.editableRooms.reversed) {
         final b = room['bounds'];
         if (point.x >= b['x'] &&
             point.y >= b['y'] &&
@@ -140,6 +148,36 @@ class _DungeonPreviewState extends State<DungeonPreview> {
       return;
     }
     if (!editable) return;
+    dragRoom = null;
+    if (tool == CanvasTool.moveRoom || tool == CanvasTool.resizeRoom) {
+      final matches = c.editableRooms.where((r) {
+        final b = r['bounds'];
+        return point.x >= b['x'] &&
+            point.y >= b['y'] &&
+            point.x < b['x'] + b['width'] &&
+            point.y < b['y'] + b['height'];
+      });
+      if (matches.isEmpty) {
+        c.note('Click an unlocked source room to move or resize.');
+        return;
+      }
+      final room = matches.last;
+      if (c.roomFixed(room['id'] as String)) {
+        c.select(room['id'] as String);
+        c.note('Unlock room explicitly before moving or resizing it.');
+        return;
+      }
+      if (!(c.source['rooms'] as List? ?? []).any(
+        (r) => r['id'] == room['id'],
+      )) {
+        c.note(
+          'Fix this generated room, then unlock it before changing geometry.',
+        );
+        return;
+      }
+      dragRoom = decodeExact(encodeExact(room)) as Map<String, dynamic>;
+      c.select(room['id'] as String);
+    }
     errors = [];
     start = point;
     last = point;
@@ -183,7 +221,40 @@ class _DungeonPreviewState extends State<DungeonPreview> {
       return;
     }
     if (start == null || waiting) return;
-    if (shape) {
+    if (roomTool) {
+      final a = start!, b = last ?? a;
+      final room =
+          dragRoom ??
+          <String, dynamic>{
+            'id': c.nextRoomId(),
+            'name': 'Fixed room',
+            'role': 'normal',
+            'tags': <String>[],
+            'capacity_override': null,
+          };
+      if (tool == CanvasTool.room) {
+        room['bounds'] = {
+          'x': math.min(a.x, b.x),
+          'y': math.min(a.y, b.y),
+          'width': (a.x - b.x).abs() + 1,
+          'height': (a.y - b.y).abs() + 1,
+        };
+      } else {
+        final bounds = Map<String, dynamic>.from(room['bounds'] as Map);
+        if (tool == CanvasTool.moveRoom) {
+          bounds['x'] += b.x - a.x;
+          bounds['y'] += b.y - a.y;
+        } else {
+          bounds['width'] = b.x - bounds['x'] + 1;
+          bounds['height'] = b.y - bounds['y'] + 1;
+        }
+        room['bounds'] = bounds;
+      }
+      room['lock_position'] = true;
+      room['lock_size'] = true;
+      start = null;
+      unawaited(command({'type': 'upsert_room', 'room': room}, preview: true));
+    } else if (shape) {
       final a = start!, b = last ?? a;
       start = null;
       unawaited(
@@ -239,7 +310,9 @@ class _DungeonPreviewState extends State<DungeonPreview> {
                     as Map)['source']
                 as Map<String, dynamic>;
         c.note(
-          'Shape preview. Apply to commit, or Cancel to keep the current mask.',
+          roomTool
+              ? 'Room preview. Apply to commit its position and size, or Cancel.'
+              : 'Shape preview. Apply to commit, or Cancel to keep the current mask.',
         );
       } else {
         apply(response);
@@ -257,8 +330,20 @@ class _DungeonPreviewState extends State<DungeonPreview> {
 
   void apply(EngineResult response) {
     final old = CanvasSnapshot.of(c), before = c.canonical;
-    if (c.commitCanvas(response, previewRevision) && before != c.canonical) {
+    if (c.commitCanvas(response, previewRevision) &&
+        before != c.canonical &&
+        !roomTool) {
       history.record(old);
+    }
+    if (roomTool) {
+      final beforeIds = (decodeExact(before)['source']['rooms'] as List)
+          .map((r) => r['id'])
+          .toSet();
+      final added = (c.source['rooms'] as List? ?? []).where(
+        (r) => !beforeIds.contains(r['id']),
+      );
+      if (added.isNotEmpty) c.select(added.last['id'] as String);
+      dragRoom = null;
     }
     pending = null;
     previewSource = null;
@@ -425,6 +510,37 @@ class _DungeonPreviewState extends State<DungeonPreview> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (design) ...[
+                  PopupMenuButton<CanvasTool>(
+                    tooltip: 'Room tools',
+                    enabled: editable && !c.canvasDraft,
+                    onSelected: (t) => setState(() => tool = t),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: CanvasTool.room,
+                        child: Text('Draw fixed room'),
+                      ),
+                      const PopupMenuItem(
+                        value: CanvasTool.moveRoom,
+                        child: Text('Move unlocked room'),
+                      ),
+                      const PopupMenuItem(
+                        value: CanvasTool.resizeRoom,
+                        child: Text('Resize unlocked room'),
+                      ),
+                    ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 12,
+                      ),
+                      child: Text(
+                        'Room ▾',
+                        style: TextStyle(
+                          color: roomTool ? colors.violet : colors.ink,
+                        ),
+                      ),
+                    ),
+                  ),
                   for (final t in CanvasTool.values.take(4))
                     icon(
                       [
@@ -517,14 +633,14 @@ class _DungeonPreviewState extends State<DungeonPreview> {
                     ),
                   ),
                   icon(
-                    'Undo stroke (Ctrl+Z)',
+                    'Undo mask stroke (Ctrl+Z)',
                     Icons.undo,
                     editable && !c.canvasDraft && history.undo.isNotEmpty
                         ? () => undo(false)
                         : null,
                   ),
                   icon(
-                    'Redo stroke (Ctrl+Shift+Z)',
+                    'Redo mask stroke (Ctrl+Shift+Z)',
                     Icons.redo,
                     editable && !c.canvasDraft && history.redo.isNotEmpty
                         ? () => undo(true)
@@ -642,6 +758,9 @@ class _DungeonPreviewState extends State<DungeonPreview> {
                       'Rectangle · drag, review the preview, then Apply.',
                       'Ellipse · drag, review the preview, then Apply.',
                       'L-shape · drag, review the preview, then Apply.',
+                      'Fixed room · drag the interior, review, then Apply room.',
+                      'Move · unlock the source room, then drag to preview its new origin.',
+                      'Resize · unlock the source room, then drag toward its new bottom-right corner.',
                     ][tool.index],
                     style: TextStyle(fontSize: 11, color: colors.muted),
                   ),
@@ -658,11 +777,11 @@ class _DungeonPreviewState extends State<DungeonPreview> {
                 const Expanded(child: Text('Preview · not applied')),
                 TextButton(
                   onPressed: cancelPreview,
-                  child: const Text('Cancel shape'),
+                  child: Text(roomTool ? 'Cancel room' : 'Cancel shape'),
                 ),
                 FilledButton(
                   onPressed: () => apply(pending!),
-                  child: const Text('Apply shape'),
+                  child: Text(roomTool ? 'Apply room' : 'Apply shape'),
                 ),
               ],
             ),
@@ -754,7 +873,7 @@ class _DungeonPreviewState extends State<DungeonPreview> {
                             erase: tool == CanvasTool.erase,
                             dragStart: start,
                             dragEnd: last,
-                            shape: shape,
+                            shape: shape || roomTool,
                             errors: errors,
                           ),
                         ),

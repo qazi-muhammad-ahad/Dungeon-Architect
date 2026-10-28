@@ -44,15 +44,15 @@ const server=http.createServer((req,res)=>{
   let tile=await fit();
   await button('Erase allowed tiles').click();await click(tile(0,0));
   let doc=await save();assert.equal(doc.source.allowed_mask[0][0],'0');assert.equal(doc.source.allowed_mask.join('').split('0').length-1,1);
-  await button('Undo stroke (Ctrl+Z)').click();doc=await save();assert.deepEqual(doc.source.allowed_mask,original.source.allowed_mask);
-  await button('Redo stroke (Ctrl+Shift+Z)').click();doc=await save();assert.equal(doc.source.allowed_mask[0][0],'0');
+  await button('Undo mask stroke (Ctrl+Z)').click();doc=await save();assert.deepEqual(doc.source.allowed_mask,original.source.allowed_mask);
+  await button('Redo mask stroke (Ctrl+Shift+Z)').click();doc=await save();assert.equal(doc.source.allowed_mask[0][0],'0');
   await button('1 tile brush').click();await page.getByRole('menuitem',{name:'3 tile brush',exact:true}).click();
   await click(tile(0,0));doc=await save();assert.equal(doc.source.allowed_mask.join('').split('0').length-1,4);
-  await button('Undo stroke (Ctrl+Z)').click();await save();
+  await button('Undo mask stroke (Ctrl+Z)').click();await save();
   await button('3 tile brush').click();await page.getByRole('menuitem',{name:'1 tile brush',exact:true}).click();
   // One fast pointer move must erase all 21 cells, as one undo gesture.
   await drag(tile(10,10),tile(30,10));doc=await save();assert.equal(doc.source.allowed_mask[10].slice(10,31),'0'.repeat(21));
-  await button('Undo stroke (Ctrl+Z)').click();doc=await save();assert.equal(doc.source.allowed_mask[10],'1'.repeat(150));
+  await button('Undo mask stroke (Ctrl+Z)').click();doc=await save();assert.equal(doc.source.allowed_mask[10],'1'.repeat(150));
   // Cursor-centered wheel zoom preserves the tile under the cursor at DPR 2.
   const anchor=tile(50,50);await page.mouse.move(anchor.x,anchor.y);await page.mouse.wheel(0,-300);await text('Tile 50, 50').waitFor();
   await click(anchor);doc=await save();assert.equal(doc.source.allowed_mask[50][50],'0');
@@ -63,7 +63,7 @@ const server=http.createServer((req,res)=>{
   await page.getByRole('button',{name:/Shape tools/}).click();await page.getByRole('menuitem',{name:'Rectangle preset',exact:true}).click();
   await button('Add shape').waitFor();await drag(tile(49,49),tile(51,51));await button('Apply shape').click();doc=await save();
   assert.equal(doc.source.allowed_mask[50][50],'1');assert.equal(doc.source.allowed_mask[40][40],'0');assert.equal(doc.source.allowed_mask[149],'1'.repeat(150));
-  await button('Undo stroke (Ctrl+Z)').click();await save();
+  await button('Undo mask stroke (Ctrl+Z)').click();await save();
   await page.getByRole('button',{name:/Shape tools/}).click();await page.getByRole('menuitem',{name:'Ellipse preset',exact:true}).click();await button('Add shape').click();await page.getByRole('menuitem',{name:'Replace shape',exact:true}).click();await drag(tile(10,10),tile(130,130));await button('Apply shape').waitFor();
   assert.equal(await saveDisabled(),'true');
   await button('Cancel shape').click();doc=await save();assert.equal(doc.source.allowed_mask[50][50],'0');
@@ -72,15 +72,15 @@ const server=http.createServer((req,res)=>{
   const ellipse=doc.source.allowed_mask;
   await page.getByRole('button',{name:/Shape tools/}).click();await page.getByRole('menuitem',{name:'L-shape preset',exact:true}).click();await drag(tile(20,20),tile(110,110));await button('Apply shape').click();doc=await save();
   assert.equal(doc.source.allowed_mask[25][100],'0');assert.equal(doc.source.allowed_mask[100][100],'1');
-  await button('Undo stroke (Ctrl+Z)').click();doc=await save();assert.deepEqual(doc.source.allowed_mask,ellipse);
-  await page.getByRole('button',{name:/Fill tools/}).click();await page.getByRole('menuitem',{name:'Clear connected area',exact:true}).click();await click(tile(70,70));doc=await save();assert.equal(doc.source.allowed_mask.join(''),'0'.repeat(22500));
+  await button('Undo mask stroke (Ctrl+Z)').click();doc=await save();assert.deepEqual(doc.source.allowed_mask,ellipse);
+  await page.getByRole('button',{name:/Fill tools/}).click();await page.getByRole('menuitem',{name:'Clear connected area',exact:true}).click();await text('Clear · click an area to remove connected tiles.').waitFor();await click(tile(70,70));doc=await save();assert.equal(doc.source.allowed_mask.join(''),'0'.repeat(22500));
   await button('Paint allowed tiles').click();await drag(tile(0,149),tile(149,149));doc=await save();assert.equal(doc.source.allowed_mask[149],'1'.repeat(150));
-  await page.getByRole('button',{name:/Fill tools/}).click();await page.getByRole('menuitem',{name:'Fill connected area',exact:true}).click();await click(tile(0,0));doc=await save();assert.equal(doc.source.allowed_mask.join(''),'1'.repeat(22500));
+  await page.getByRole('button',{name:/Fill tools/}).click();await page.getByRole('menuitem',{name:'Fill connected area',exact:true}).click();await text('Fill · click an area to allow connected tiles.').waitFor();await click(tile(0,0));doc=await save();assert.equal(doc.source.allowed_mask.join(''),'1'.repeat(22500));
   // Resize must require explicit crop consent; expanding pads with disallowed tiles.
   const resize=async(n,crop=false)=>{await button('Resize canvas').click();await page.getByRole('textbox',{name:'Columns (1–512)',exact:true}).fill('');await page.getByRole('textbox',{name:'Columns (1–512)',exact:true}).fill(''+n);await page.getByRole('textbox',{name:'Rows (1–512)',exact:true}).fill('');await page.getByRole('textbox',{name:'Rows (1–512)',exact:true}).fill(''+n);if(crop)await page.getByRole('checkbox').click();await button('Resize').click();};
   await resize(100);await text(/Resize would crop allowed tiles/).waitFor();doc=await save();assert.equal(doc.source.settings.columns,150);
   await resize(100,true);doc=await save();assert.equal(doc.source.settings.columns,100);
-  await button('Undo stroke (Ctrl+Z)').click();doc=await save();assert.equal(doc.source.settings.columns,150);
+  await button('Undo mask stroke (Ctrl+Z)').click();doc=await save();assert.equal(doc.source.settings.columns,150);
   await resize(512);doc=await save();assert.equal(doc.source.settings.columns,512);assert.equal(doc.source.allowed_mask[511],'0'.repeat(512));
   tile=await fit(512);await button('Paint allowed tiles').click();
   const times=[];
@@ -102,5 +102,4 @@ const server=http.createServer((req,res)=>{
   console.log('PASS Phase 10: precise edges/DPR2/zoom, interpolated strokes, undo/redo, preview/cancel/apply, ellipse/L, fill, crop/resize, 512 canvas, protected rooms, persistence and both themes. Gesture + saved source ms:',times);
  } catch(e){if(page){await page.screenshot({path:path.join(output,'phase10-failure.png')});fs.writeFileSync(path.join(output,'phase10-failure.html'),await page.locator('flt-semantics-host').innerHTML());}throw e;}
  finally{await browser.close();server.close();}
-})().catch(e=>{console.error(e);server.close();process.exitCode=1;});
-
+})().catch(e=>{console.error(e.code || e.name, e.message.split('\n')[0]);console.error((e.stack || '').split('\n').filter(line=>line.trimStart().startsWith('at ')).join('\n'));server.close();process.exitCode=1;});

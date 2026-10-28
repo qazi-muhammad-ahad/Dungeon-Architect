@@ -9,6 +9,7 @@ import 'editor/preview.dart';
 import 'editor/preferences.dart';
 import 'editor/theme.dart';
 import 'editor/widgets.dart';
+import 'editor/record_editors.dart';
 
 void main() => runApp(const DungeonArchitectApp());
 
@@ -404,11 +405,28 @@ class _EditorShellState extends State<EditorShell> {
       Tooltip(
         message: 'Automatically find a valid layout, connect rooms and solve allocation (F5)',
         child: FilledButton.icon(
-          onPressed: c.canRun && !fileBusy ? c.run : null,
+          onPressed:
+              c.canRun &&
+                  !fileBusy &&
+                  c.activePackCount <= ProjectController.exactPackLimit
+              ? () => c.run()
+              : null,
           icon: Icon(Icons.play_arrow_rounded, size: 17),
           label: Text(narrow ? 'Run' : 'Generate & solve'),
         ),
       ),
+    if (!c.busy && MediaQuery.sizeOf(context).width >= 1100) ...[
+      TextButton(
+        onPressed: c.canRun && !fileBusy
+            ? () => c.run(geometryOnly: true)
+            : null,
+        child: Text('Generate only'),
+      ),
+      TextButton(
+        onPressed: c.canOptimize && !fileBusy ? c.optimize : null,
+        child: Text('Optimize'),
+      ),
+    ],
     IconButton(
       tooltip: 'Project inspector',
       onPressed: () {
@@ -482,9 +500,13 @@ class _EditorShellState extends State<EditorShell> {
           'Allowed area',
           '${c.settings['columns'] ?? '—'} × ${c.settings['rows'] ?? '—'}',
         ),
-        _treeLabel(Icons.meeting_room_outlined, 'Rooms', '${c.rooms.length}'),
+        _treeLabel(
+          Icons.meeting_room_outlined,
+          'Rooms',
+          '${c.editableRooms.length}',
+        ),
         Expanded(
-          child: c.rooms.isEmpty
+          child: c.editableRooms.isEmpty
               ? Padding(
                   padding: EdgeInsets.fromLTRB(32, 12, 20, 0),
                   child: Text(
@@ -493,9 +515,9 @@ class _EditorShellState extends State<EditorShell> {
                   ),
                 )
               : ListView.builder(
-                  itemCount: c.rooms.length,
+                  itemCount: c.editableRooms.length,
                   itemBuilder: (context, i) {
-                    final r = c.rooms[i];
+                    final r = c.editableRooms[i];
                     final selected = c.selectedRoom == r['id'];
                     return Padding(
                       padding: EdgeInsets.only(left: 20, right: 8),
@@ -704,9 +726,9 @@ class _EditorShellState extends State<EditorShell> {
                 ),
                 SizedBox(height: 5),
                 Text(
-                  c.payload == null
+                  c.allocation == null
                       ? 'Generate a layout first to see score, threat usage and placed actors.'
-                      : '${c.stale ? 'Previous result · ' : ''}${c.rooms.length} rooms · Score ${c.payload!['allocation']['total_score']} · Threat ${c.payload!['allocation']['total_threat']} · ${(c.payload!['allocation']['actors'] as List).length} actors',
+                      : '${c.stale ? 'Previous result · ' : ''}${c.rooms.length} rooms · Score ${c.allocation!['total_score']} · Threat ${c.allocation!['total_threat']} · ${(c.allocation!['actors'] as List).length} actors',
                   style: TextStyle(fontSize: 11, color: violet),
                 ),
                 Text(
@@ -845,6 +867,12 @@ class _EditorShellState extends State<EditorShell> {
                     (c.settings['rows'] as int? ?? 150),
               ),
               _number('Seed', 'seed', 'seed', 0, 4294967295),
+              _number('Min room width', 'min_room_width', 'tiles', 1, 512),
+              _number('Max room width', 'max_room_width', 'tiles', 1, 512),
+              _number('Min room height', 'min_room_height', 'tiles', 1, 512),
+              _number('Max room height', 'max_room_height', 'tiles', 1, 512),
+              _number('Corridor width', 'corridor_width', 'tiles', 1, 512),
+              _number('Room margin', 'margin', 'tiles', 0, 512),
               Text(
                 'Starting seed. Generate searches automatically and saves the first successful seed.',
                 style: TextStyle(fontSize: 11, color: muted, height: 1.5),
@@ -864,6 +892,30 @@ class _EditorShellState extends State<EditorShell> {
               SizedBox(height: 14),
               _number('Threat budget', 'threat_budget', 'points', 0, null),
               Text(
+                c.result == null
+                    ? 'Generate a dungeon to begin.'
+                    : c.geometryCurrent
+                    ? 'Geometry current · Optimize refreshes allocation.'
+                    : 'Geometry stale · Generate to recompute rooms and corridors.',
+                style: TextStyle(fontSize: 11, color: violet),
+              ),
+              SizedBox(height: 12),
+              Wrap(
+                children: [
+                  TextButton(
+                    onPressed: c.canRun
+                        ? () => c.run(geometryOnly: true)
+                        : null,
+                    child: Text('Generate only'),
+                  ),
+                  TextButton(
+                    onPressed: c.canOptimize ? c.optimize : null,
+                    child: Text('Optimize'),
+                  ),
+                ],
+              ),
+              EncounterCatalogue(controller: c),
+              Text(
                 'Exact subset optimization. Unselected packs remain in the inventory.',
                 style: TextStyle(fontSize: 11, color: muted, height: 1.6),
               ),
@@ -881,7 +933,7 @@ class _EditorShellState extends State<EditorShell> {
                 '1. Generate a layout.\n2. Use Select room, then click a room or its Explorer entry.\n3. Choose Fix room here in Selection. Its position and size are preserved on later runs.',
                 style: TextStyle(fontSize: 11, color: muted, height: 1.6),
               ),
-              if (c.payload != null) ...[
+              if (c.allocation != null) ...[
                 SizedBox(height: 22),
                 Divider(),
                 SizedBox(height: 18),
@@ -908,6 +960,15 @@ class _EditorShellState extends State<EditorShell> {
                   'Placed actors',
                   '${(c.payload!['allocation']['actors'] as List).length}',
                 ),
+                _property('Slots used', '${c.allocation!['total_slots']}'),
+                for (final unused in c.allocation!['unused'] as List? ?? [])
+                  Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Unused ${unused['pack_id']}: ${unused['reason']}',
+                      style: TextStyle(fontSize: 11, color: muted),
+                    ),
+                  ),
               ],
             ],
           ),
@@ -924,7 +985,7 @@ class _EditorShellState extends State<EditorShell> {
   ) => NumericField(
     key: ValueKey('${c.documentEpoch}:$key'),
     label: label,
-    value: '${c.settings[key] ?? ''}',
+    value: '${c.settingValue(key) ?? ''}',
     unit: unit,
     error: c.fieldErrors[key],
     enabled: c.document != null && !fileBusy && !c.loading && !c.canvasDraft,
@@ -936,7 +997,7 @@ class _EditorShellState extends State<EditorShell> {
     ),
   );
   List<Widget> _selection() {
-    final matching = c.rooms.where((r) => r['id'] == c.selectedRoom);
+    final matching = c.editableRooms.where((r) => r['id'] == c.selectedRoom);
     if (matching.isEmpty) return [];
     final r = matching.first, b = r['bounds'];
     return [
@@ -944,6 +1005,51 @@ class _EditorShellState extends State<EditorShell> {
       _property('Role', r['role']),
       _property('Interior', '${b['width']} × ${b['height']}'),
       _property('Origin', '${b['x']}, ${b['y']}'),
+      _property('Name', '${r['name']}'),
+      _property('Tags', (r['tags'] as List? ?? []).join(', ')),
+      if (c.payload != null) ...[
+        for (final p in c.payload!['geometry']?['rooms'] as List? ?? [])
+          if (p['id'] == r['id']) ...[
+            _property(
+              'Valid positions',
+              '${(p['spawn_positions'] as List).length}',
+            ),
+            _property(
+              'Capacity',
+              '${r['capacity_override'] ?? p['capacity']} slots',
+            ),
+          ],
+      ],
+      for (final assignment in c.allocation?['assignments'] as List? ?? [])
+        if (assignment['room_id'] == r['id'])
+          _property('Assigned pack', '${assignment['pack_id']}'),
+      if (c.allocation != null)
+        _property(
+          'Slots used',
+          '${(c.allocation!['actors'] as List).where((a) => a['room_id'] == r['id']).length}',
+        ),
+      OutlinedButton(
+        onPressed: c.canRun
+            ? () => editRoom(context, c, Map<String, dynamic>.from(r as Map))
+            : null,
+        child: Text('Edit room details'),
+      ),
+      if ((c.source['rooms'] as List? ?? []).any(
+        (room) => room['id'] == r['id'],
+      )) ...[
+        OutlinedButton(
+          onPressed: c.canRun && c.selectedRoomFixed
+              ? () => c.unlockRoom(r['id'] as String)
+              : null,
+          child: Text('Unlock room'),
+        ),
+        TextButton(
+          onPressed: c.canRun && !c.selectedRoomFixed
+              ? () => c.removeRoom(r['id'] as String)
+              : null,
+          child: Text('Remove room'),
+        ),
+      ],
       SizedBox(height: 8),
       OutlinedButton.icon(
         onPressed: c.canRun && (c.selectedRoomFixed || !c.stale)

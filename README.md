@@ -6,7 +6,7 @@ For browser hosting, reproducible builds, and traffic protection, see
 [deployment](docs/deployment.md) and [security](SECURITY.md).
 
 C++ engine and Flutter editor for constrained dungeon generation and exact
-encounter allocation. **Phases 00-10 are implemented (Chrome-first):** the build environment,
+encounter allocation. **Phases 00-11 are implemented (Chrome-first):** the build environment,
 module structure, C++ domain/validation API, transactional session updates, and
 versioned project persistence, mask editing/connectivity, fixed-room validation,
 immutable reservations, constrained BSP rooms, width-aware corridors, verified
@@ -15,8 +15,10 @@ The Flutter editor has Design/Analyze/Play navigation, light and dark gray theme
 project files, validated settings, a precise Design canvas and revision-safe
 run/cancel controls. Paint, fill, preview shapes, undo/redo, pan/zoom, resize and
 inspect mask diagnostics. See [editor workflow](docs/editor_shell.md) and
-[canvas tools and themes](docs/design_canvas.md). Encounter editing and full
-gameplay controls follow in later phases.
+[canvas tools and themes](docs/design_canvas.md). Room tools, runtime generation
+settings, the encounter catalogue and allocation-only optimization are described
+in [room and encounter editing](docs/room_encounter_editor.md). Full gameplay
+controls follow in later phases.
 
 Chrome is the primary UI target, following the platform decision on 2026-10-11.
 VS Code is supported as the editor; Visual Studio is not needed for this setup.
@@ -73,7 +75,8 @@ See [complete CLI workflow](docs/cli.md) and [result format](docs/result_format.
 
 ## Run the browser app
 
-Build the engine first from the root (Emscripten is already installed locally on this PC):
+For a new PC, start with [clone, setup, and Codex handoff](docs/new-device.md).
+Build the engine first from the root after installing the native and web tools:
 
 ```powershell
 .\tools\build-web-engine.ps1
@@ -82,7 +85,7 @@ Build the engine first from the root (Emscripten is already installed locally on
 On a fresh checkout, run `tools/bootstrap-web.ps1` once; see [setup](docs/native_api.md). With the existing Flutter SDK on PATH:
 
 ```powershell
-cd 'E:\Uni\sem5\DAA\Dungeon Architect\apps\flutter_ui'
+cd apps/flutter_ui
 flutter pub get
 flutter run -d chrome --no-web-resources-cdn
 ```
@@ -148,7 +151,8 @@ the project. Chrome uses the shared C API compiled to WebAssembly in a worker; t
 
 ## Git and Fork
 
-This folder is a Git repository on `main`, with `origin` pointing to the public
-GitHub repository above. Open it in Fork with **File > Open Repository**.
+The `Development` branch contains the phase 11 work for continued development;
+`main` is the production branch. Both use the public GitHub repository above.
+Open your clone in Fork with **File > Open Repository**.
 Generated tools/builds, credentials, course handouts, and personal documents are
 ignored. Source, lockfiles, fixtures, and project documentation are versioned.

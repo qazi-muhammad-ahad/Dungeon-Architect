@@ -49,13 +49,13 @@
     async run(project,operation = 5,events = 256,flags = 0) {
       if (this.closed || this.closing) throw Object.assign(new Error('Engine is closed.'),{code:'closed'});
       if (this.running) throw Object.assign(new Error('An engine job is already running.'),{code:'busy'});
-      if (![operation,events,flags].every(Number.isInteger) || operation < 1 || operation > 8 || events < 0 || events > 4096 || flags < 0 || flags > 1)
+      if (![operation,events,flags].every(Number.isInteger) || operation < 1 || operation > 10 || events < 0 || events > 4096 || flags < 0 || flags > 1)
         throw Object.assign(new Error('Invalid operation, event limit or flags.'),{code:'invalid_argument'});
       this.running = (async () => {
         await this.ready;
         if (this.closing) throw Object.assign(new Error('Engine is closing.'),{code:'closed'});
         const value = await this.request('run',{project,operation,events,flags});
-        if (value.outcome === 0 && operation >= 2 && operation <= 5) { this.lastResult = value.report; this.snapshotJob = value.snapshotJob; }
+        if (value.outcome === 0 && ((operation >= 2 && operation <= 5) || operation === 9 || operation === 10)) { this.lastResult = value.report; this.snapshotJob = value.snapshotJob; }
         return value.report;
       })();
       try { return await this.running; } finally { this.running = null; }
