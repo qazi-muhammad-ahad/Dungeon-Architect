@@ -3,7 +3,10 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const output = path.join(root, 'apps/flutter_ui/build/web');
+// Optional build directory lets packaging verify a fresh output without replacing
+// the normal Vercel output. With no argument, deployment behavior is unchanged.
+assert.ok(process.argv.length <= 3, 'Usage: node tools/verify-deployment.mjs [web-output]');
+const output = path.resolve(root, process.argv[2] || 'apps/flutter_ui/build/web');
 const config = JSON.parse(await readFile(path.join(root, 'vercel.json'), 'utf8'));
 assert.equal(config.outputDirectory, 'apps/flutter_ui/build/web');
 assert.equal(config.framework, null);

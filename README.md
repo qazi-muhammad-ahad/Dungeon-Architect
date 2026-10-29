@@ -6,7 +6,7 @@ For browser hosting, reproducible builds, and traffic protection, see
 [deployment](docs/deployment.md) and [security](SECURITY.md).
 
 C++ engine and Flutter editor for constrained dungeon generation and exact
-encounter allocation. **Phases 00-15 are implemented (Chrome-first):** the build environment,
+encounter allocation. **Phases 00-17 are implemented (Chrome-first):** the build environment,
 module structure, C++ domain/validation API, transactional session updates, and
 versioned project persistence, mask editing/connectivity, fixed-room validation,
 immutable reservations, constrained BSP rooms, width-aware corridors, verified
@@ -26,7 +26,22 @@ Combat and enemy AI are outside this scope.
 
 Chrome is the primary UI target, following the platform decision on 2026-10-11.
 VS Code is supported as the editor; Visual Studio is not needed for this setup.
-Chrome uses the same C++ engine through WebAssembly. The Windows DLL is built alongside it; native Dart FFI/mobile builds and Windows app packaging are deferred.
+Chrome uses the same C++ engine through WebAssembly. The portable Windows x64
+package includes a local Chrome host plus the CLI, DLL, C API example, samples
+and runtime notices. Native Flutter Windows/Dart FFI and mobile builds remain
+deferred under the agreed [platform decision](docs/platform_decision.md).
+
+## Portable local use
+
+Download the portable Windows x64 ZIP from [GitHub Releases](https://github.com/qazi-muhammad-ahad/Dungeon-Architect/releases), extract the whole folder, and run
+**Start Dungeon Architect.cmd**. Open the printed loopback URL in Chrome and keep
+the console open while using the app; Ctrl+C stops it. No development checkout,
+Flutter SDK, Node or Python is required to run the package. Windows system/UCRT
+libraries and Chrome are prerequisites. Do not open its HTML with `file://`.
+
+The same archive contains `bin/dungeon_cli.exe`, `bin/libdungeon_api.dll`, a
+standalone C example and import library, ready-to-open samples and SHA-256 file
+inventory. See [portable launch, controls and troubleshooting](docs/portable-package.md).
 
 ## Use the C++ project API through the CLI
 

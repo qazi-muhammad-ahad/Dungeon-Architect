@@ -3,8 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const {chromium} = require('playwright');
 const root = path.resolve(__dirname, '../../apps/flutter_ui/build/web');
-const teaching = fs.readFileSync(path.resolve(__dirname, '../../datasets/pipeline/teaching.json'), 'utf8');
-const large = fs.readFileSync(path.resolve(__dirname, '../../datasets/allocation/standard-14.json'), 'utf8');
+const teaching = fs.readFileSync(process.env.DA_TEST_PACKAGE ? path.join(process.env.DA_TEST_PACKAGE,'samples/teaching.json') : path.resolve(__dirname, '../../datasets/pipeline/teaching.json'), 'utf8');
+const large = fs.readFileSync(process.env.DA_TEST_PACKAGE ? path.join(process.env.DA_TEST_PACKAGE,'samples/irregular-fortress.json') : path.resolve(__dirname, '../../datasets/allocation/standard-14.json'), 'utf8');
 const server = http.createServer((req,res) => {
   const name = new URL(req.url, 'http://localhost').pathname;
   if (name === '/') return res.writeHead(200, {'Content-Type':'text/html'}).end('<script src="engine/client.js"></script>');
@@ -14,14 +14,15 @@ const server = http.createServer((req,res) => {
     res.writeHead(200, {'Content-Type': {'.html':'text/html','.js':'text/javascript','.wasm':'application/wasm','.json':'application/json','.css':'text/css','.ttf':'font/ttf','.otf':'font/otf','.woff':'font/woff','.woff2':'font/woff2','.png':'image/png','.svg':'image/svg+xml','.ico':'image/x-icon'}[path.extname(file)] || 'application/octet-stream'}).end(data));
 });
 (async () => {
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  if (!process.env.DA_TEST_BASE_URL) await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const packageBase = process.env.DA_TEST_BASE_URL || `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch({channel:'chrome',headless:true});
   let page;
   try {
     page = await browser.newPage({viewport:{width:1600,height:1100}});
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.goto(`http://127.0.0.1:${server.address().port}`);
+    await page.goto(packageBase);
     const evidence = await page.evaluate(async ({teaching,large}) => {
       const editor = new DungeonEngineClient(), benchmark = new DungeonEngineClient();
       try {
@@ -81,7 +82,7 @@ const server = http.createServer((req,res) => {
       globalThis.showOpenFilePicker = async () => [{name:'teaching.json',getFile:async()=>new File([teaching],'teaching.json')}];
       globalThis.showSaveFilePicker = async () => ({name:'analysis.json',createWritable:async()=>({write:async value=>{written=value;},close:async()=>{},abort:async()=>{}})});
     }, {teaching});
-    await page.goto(`http://127.0.0.1:${server.address().port}/index.html`);
+    await page.goto(`${packageBase}/index.html`);
     const semantics = page.locator('flt-semantics-placeholder');
     await semantics.waitFor(); await semantics.evaluate(node=>node.click());
     const button = name=>page.getByRole('button',{name,exact:true});
@@ -167,5 +168,5 @@ const server = http.createServer((req,res) => {
       await page.content().then(html=>fs.writeFileSync(path.join(output,'phase12-13-failure.html'),html)).catch(()=>{});
     }
     throw error;
-  } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
+  } finally { await browser.close(); if (server.listening) await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode=1; });

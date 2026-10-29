@@ -388,21 +388,42 @@ Evidence (2026-10-29): original code-native pixel palette and art provenance; de
 
 Dependencies: Phases 00-16.
 
-- [ ] P17.01 Build Release versions of the CLI, native DLL, and Flutter Windows app.
-- [ ] P17.02 Package required native/runtime dependencies and asset licenses.
-- [ ] P17.03 Verify relative DLL/asset discovery without developer-machine absolute paths.
-- [ ] P17.04 Include a few ready-to-open sample projects and a blank-start workflow.
-- [ ] P17.05 Add concise installation, launch, project-format, controls, known-limit, and troubleshooting instructions.
-- [ ] P17.06 Include native API headers and a minimal local integration example for reuse.
-- [ ] P17.07 Run core/API/integration tests and the full user workflow from a fresh build directory.
-- [ ] P17.08 Launch the packaged app from a different directory, including a path containing spaces.
-- [ ] P17.09 Verify open/save, generation, optimization, traces, charts, failures, and exploration in the packaged build.
-- [ ] P17.10 Confirm unsupported-size and cancellation behavior matches the development build.
-- [ ] P17.11 Record verified platform/toolchain/library versions and remaining product limitations.
-- [ ] P17.12 Update this checklist to reflect actual completion; leave unfinished items explicitly unchecked.
+Chrome-first adaptation: the approved [platform decision](docs/platform_decision.md)
+explicitly packages the static Flutter web app and Wasm engine for local HTTP,
+alongside the Windows CLI/DLL. The optional native Flutter Windows runner and
+Dart FFI remain deferred; they are not claimed built or verified here.
+
+- [x] P17.01 Build Release versions of the CLI, native DLL, and Chrome app/Wasm package under the agreed platform adaptation.
+- [x] P17.02 Package required native/runtime dependencies and asset licenses.
+- [x] P17.03 Verify relative DLL/asset discovery without developer-machine absolute paths.
+- [x] P17.04 Include a few ready-to-open sample projects and a blank-start workflow.
+- [x] P17.05 Add concise installation, launch, project-format, controls, known-limit, and troubleshooting instructions.
+- [x] P17.06 Include native API headers and a minimal local integration example for reuse.
+- [x] P17.07 Run core/API/integration tests and the full user workflow from a fresh build directory.
+- [x] P17.08 Launch the packaged app from a different directory, including a path containing spaces.
+- [x] P17.09 Verify open/save, generation, optimization, traces, charts, failures, and exploration in the packaged build.
+- [x] P17.10 Confirm unsupported-size and cancellation behavior matches the development build.
+- [x] P17.11 Record verified platform/toolchain/library versions and remaining product limitations.
+- [x] P17.12 Update this checklist to reflect actual completion; leave unfinished items explicitly unchecked.
 
 Exit checks:
-- [ ] The packaged app and CLI run independently of the development checkout and include everything needed for local use.
+- [x] The packaged app and CLI run independently of the development checkout and include everything needed for local use.
+
+Evidence (2026-10-29): fresh Release native build passes 20/20 CTest suites;
+analyzer clean and 54/54 Flutter tests pass; fresh Wasm and CSP/self-hosted web
+output pass artifact verification. Portable Windows x64 launcher serves only
+executable-relative web assets over read-only loopback HTTP, with no installed
+server/runtime SDK. Package includes CLI/DLL, import library, standalone C source
+and prebuilt caller, three samples, schema/docs and component licenses. Native
+imports resolve only to the packaged API DLL and Windows/UCRT system libraries.
+Relocated paths with spaces, independent cwd and sanitized PATH pass file hashes,
+sample/save/replay, C caller, unsupported inventory/cancel and HTTP safety checks.
+The shipped C source/header/import library were separately compiled and run.
+Actual packaged Chrome tests pass traces/BSP/DP/charts/export, scenario/focus/
+actor/exit/full exploration, save/reopen, invalid input, cancellation and 15-pack
+UI limits. A true zero-mask sample is authored via rectangle Replace/Apply,
+generated, saved, reopened exactly and regenerated. Runtime requests stay on the
+packaged origin with no browser errors. See [portable package](docs/portable-package.md).
 
 ## Optional backlog - not required for the initial application
 
@@ -414,16 +435,22 @@ Exit checks:
 
 ## End-to-end completion checks
 
-- [ ] Draw a custom allowed area on a 150 x 150 or larger canvas.
-- [ ] Place and lock a room, enter room count/sizes, and generate without moving the locked geometry.
-- [ ] Edit encounters and threat budget; obtain an exact, validated assignment.
-- [ ] Inspect real BSP and allocation behavior in Analyze.
-- [ ] View measured benchmark charts.
-- [ ] Block a corridor, inspect changed reachability/allocation, and restore the baseline.
-- [ ] Explore the same dungeon in Play and reach its exit.
-- [ ] Save, close, reopen, and reproduce the project.
-- [ ] Cancel expensive work and recover from invalid input without losing the last valid project.
-- [ ] Run the packaged app and use the native API from the included standalone example.
+- [x] Draw a custom allowed area on a 150 x 150 or larger canvas.
+- [x] Place and lock a room, enter room count/sizes, and generate without moving the locked geometry.
+- [x] Edit encounters and threat budget; obtain an exact, validated assignment.
+- [x] Inspect real BSP and allocation behavior in Analyze.
+- [x] View measured benchmark charts.
+- [x] Block a corridor, inspect changed reachability/allocation, and restore the baseline.
+- [x] Explore the same dungeon in Play and reach its exit.
+- [x] Save, close, reopen, and reproduce the project.
+- [x] Cancel expensive work and recover from invalid input without losing the last valid project.
+- [x] Run the packaged app and use the native API from the included standalone example.
+
+Evidence: Design/room authoring and locked-geometry preservation were verified in
+Phases 10-11, with native invariants retained in the current suites. Phase 17's
+fresh relocated package verifies the remaining real trace/chart/scenario/Play/
+persistence/cancellation paths and standalone native API integration, including
+authored blank-mask save/reopen/regeneration. Optional backlog remains pending.
 
 ## Implementation log
 

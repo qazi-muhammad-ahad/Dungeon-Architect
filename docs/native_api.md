@@ -10,8 +10,10 @@ x64 DLL is built alongside it using the existing portable LLVM-MinGW compiler;
 Visual Studio is not required for that DLL. A Flutter Windows runner would need
 MSVC/Windows SDK. A Windows DLL is not an iOS/Android binary: those targets need
 separate platform builds/adapters and have not been tested. Native Dart FFI,
-mobile builds and Windows application packaging are explicitly deferred by the
-user's Chrome-first decision on 2026-10-12.
+mobile builds and the native Flutter Windows runner remain deferred by the
+user's Chrome-first decision on 2026-10-12. Phase 17 packages the Windows x64
+CLI/DLL and Chrome static UI/Wasm with a portable loopback host; see
+[portable package instructions](portable-package.md).
 
 ## C ABI contract
 

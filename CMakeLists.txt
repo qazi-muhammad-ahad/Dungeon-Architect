@@ -82,6 +82,13 @@ if(MINGW)
 endif()
 da_warnings(dungeon_cli)
 
+# Portable Chrome package: local read-only HTTP, no installed server runtime.
+if(WIN32)
+  add_executable(dungeon_launcher tools/portable_server.cpp)
+  target_link_libraries(dungeon_launcher PRIVATE ws2_32 shell32)
+  da_warnings(dungeon_launcher)
+endif()
+
 # Explicitly verify language AND standard-library support on the chosen toolchain.
 # GCC 6.3 is deliberately rejected by this probe (missing <string_view>).
 add_executable(dungeon_cxx17_probe tools/cxx17_probe.cpp)

@@ -4,7 +4,7 @@ const fs = require('node:fs'), path = require('node:path'), http = require('node
 const {chromium} = require('playwright');
 const root = path.resolve(__dirname, '../../apps/flutter_ui/build/web');
 const output = path.resolve(__dirname, '../../output/app');
-const teaching = fs.readFileSync(path.resolve(__dirname, '../../datasets/pipeline/teaching.json'), 'utf8');
+const teaching = fs.readFileSync(process.env.DA_TEST_PACKAGE ? path.join(process.env.DA_TEST_PACKAGE,'samples/teaching.json') : path.resolve(__dirname, '../../datasets/pipeline/teaching.json'), 'utf8');
 const server = http.createServer((req,res) => {
   const name = new URL(req.url, 'http://localhost').pathname;
   if (name === '/') return res.writeHead(200, {'Content-Type':'text/html'}).end('<script src="engine/client.js"></script>');
@@ -28,14 +28,15 @@ function route(floor,from,to,avoid) {
   throw Error(`No independent floor route ${from} -> ${to}`);
 }
 (async () => {
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  if (!process.env.DA_TEST_BASE_URL) await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const packageBase = process.env.DA_TEST_BASE_URL || `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch({channel:'chrome',headless:true});
   let page;
   try {
     const context = await browser.newContext({viewport:{width:1600,height:1100}});
     page = await context.newPage();
     const errors=[]; page.on('pageerror', error => errors.push(error.message));
-    const base = `http://127.0.0.1:${server.address().port}`;
+    const base = packageBase;
     await page.goto(base);
     const evidence = await page.evaluate(async teaching => {
       const engine = new DungeonEngineClient();
@@ -230,5 +231,5 @@ function route(floor,from,to,avoid) {
       await page.content().then(html=>fs.writeFileSync(path.join(output,'phase14-15-failure.html'),html)).catch(()=>{});
     }
     throw error;
-  } finally {await browser.close();await new Promise(resolve=>server.close(resolve));}
+  } finally {await browser.close();if (server.listening) await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error);process.exitCode=1;});

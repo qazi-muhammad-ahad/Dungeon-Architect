@@ -8,10 +8,15 @@ cd Dungeon-Architect
 git status --short --branch
 ```
 
-Open this cloned folder as the project in Codex. `Development` contains implemented phases 00-15;
+Open this cloned folder as the project in Codex. `Development` contains implemented phases 00-17;
 `main` remains the production branch. Commit and push ongoing work to
 `Development`. Do not merge into `main` until a production release is intended.
 GitHub authentication is required to push, but not to clone this public repository.
+
+For using the app without developing it, prefer the portable Windows x64 archive
+from GitHub Releases. Its launcher serves packaged assets over loopback HTTP;
+no checkout, Flutter, Node or Python is required. See
+[portable package](portable-package.md). The setup below is for development.
 
 ## Windows setup
 
@@ -55,7 +60,7 @@ above are the established development setup; Linux hosting uses
 Suggested first message on the new PC:
 
 > Read README.md, docs/new-device.md, plan.md, and the current phase in todo.md.
-> Inspect Git status before edits. Stay on Development. Phases 00-15 are
+> Inspect Git status before edits. Stay on Development. Phases 00-17 are
 > implemented; do not start a later phase until I request it. Set up the tools
 > needed on this PC and verify the existing project first.
 
@@ -78,7 +83,7 @@ Preserve these project constraints:
   stop implementation and write a concise local handoff. Never invent unavailable
   telemetry. Keep private machine/session details out of committed documents.
 
-Recorded local validation for phases 00-15 includes 19 native suites, 49 Flutter
+Recorded local validation for phases 00-17 includes 20 native suites, 54 Flutter
 tests, clean analyzer, Wasm/CSP release builds, artifact verification and real
 Chrome scenario/Play and Analyze workflows. Benchmark observations and exact
 fixtures are in benchmarks/ and docs/analyze_benchmarks.md. A new PC still needs
