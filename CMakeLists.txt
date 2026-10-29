@@ -102,6 +102,12 @@ if(BUILD_TESTING)
     "${CMAKE_CURRENT_SOURCE_DIR}/datasets/pipeline/teaching.json"
     "${CMAKE_CURRENT_SOURCE_DIR}/datasets/pipeline/irregular-fortress.json")
   set_tests_properties(core.scenario_play PROPERTIES TIMEOUT 30)
+  add_executable(dungeon_robustness_test tests/core/robustness_test.cpp)
+  target_link_libraries(dungeon_robustness_test PRIVATE dungeon_api dungeon_result_io)
+  da_warnings(dungeon_robustness_test)
+  add_test(NAME core.robustness COMMAND dungeon_robustness_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/datasets/pipeline/teaching.json")
+  set_tests_properties(core.robustness PROPERTIES TIMEOUT 30)
   add_test(NAME api.cli_parity COMMAND "${CMAKE_COMMAND}"
     "-DCLI=$<TARGET_FILE:dungeon_cli>" "-DCALLER=$<TARGET_FILE:dungeon_api_caller>"
     "-DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/datasets/pipeline/teaching.json"

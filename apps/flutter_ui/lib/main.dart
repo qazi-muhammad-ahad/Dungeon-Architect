@@ -67,6 +67,7 @@ class _EditorShellState extends State<EditorShell> {
   void initState() {
     super.initState();
     c.addListener(_changed);
+    files.setDirty(c.dirty);
     if (widget.controller == null) unawaited(_start());
   }
 
@@ -764,9 +765,13 @@ class _EditorShellState extends State<EditorShell> {
               SizedBox(width: 18),
               _legend(Color(0xFF9388A0), 'Room'),
               Spacer(),
-              Text(
-                c.selectedRoom ?? 'No room selected',
-                style: TextStyle(fontSize: 10, color: muted),
+              Flexible(
+                child: Text(
+                  c.selectedRoom ?? 'No room selected',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 10, color: muted),
+                ),
               ),
             ],
           ),
@@ -1151,15 +1156,21 @@ class _EditorShellState extends State<EditorShell> {
         ),
         SizedBox(width: 7),
         Expanded(
-          child: Text(
-            c.validating
-                ? 'Validating project…'
-                : c.busy
-                ? '${c.state == RunState.cancelling ? 'Cancelling' : c.stage} · rev ${c.activeRevision}'
-                : c.message,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 10, color: ink),
+          child: Semantics(
+            liveRegion: true,
+            child: Tooltip(
+              message: c.message,
+              child: Text(
+                c.validating
+                    ? 'Validating project…'
+                    : c.busy
+                    ? '${c.state == RunState.cancelling ? 'Cancelling' : c.stage} · rev ${c.activeRevision}'
+                    : c.message,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 10, color: ink),
+              ),
+            ),
           ),
         ),
         if (!narrow) ...[

@@ -132,7 +132,8 @@ class ProjectController extends ChangeNotifier {
   bool get busy => state == RunState.running || state == RunState.cancelling;
   bool get dirty =>
       document != null &&
-      (canonical != saved ||
+      (canvasDraft ||
+          canonical != saved ||
           validatedRevision != revision ||
           fieldErrors.isNotEmpty);
   bool get stale => result != null && resultRevision != revision;
@@ -325,6 +326,10 @@ class ProjectController extends ChangeNotifier {
   }
 
   void switchView(EditorView value) {
+    if (canvasDraft && value != view) {
+      note('Apply or cancel the canvas preview before switching workspace.');
+      return;
+    }
     if (value != EditorView.analyze) playback.pause();
     view = value;
     _notify();

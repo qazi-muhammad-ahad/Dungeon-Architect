@@ -35,15 +35,21 @@ position and size; subsequent generation arranges other rooms around it. Use
 **Release room** to allow regeneration. Fixing requires a current verified result.
 The source edit is validated in C++ and marks the previous result stale.
 
-Analyze shows the solved allocation's score, threat usage and placed-actor count;
-the console also displays generation, routing and DP work counters. Play currently
-provides a read-only map preview of entrance, exit and connected floor. Both views
-explain their purpose in place; trace playback and player movement remain later work.
+Analyze shows allocation totals, bounded native trace playback, BSP/DP inspection,
+optional map overlays and isolated benchmarks. Its temporary failure scenarios can
+block floor tiles or change allocation constraints without changing the saved
+baseline. Apply changes to rerun native reachability and exact allocation, or
+restore the baseline. Stale scenario output suppresses assignments until reapplied.
 
-The shared canvas now supports painting, fill, shape previews, undo/redo, resizing
-and camera navigation; see [Design canvas](design_canvas.md). Encounter editing,
-trace playback and player movement belong to later phases in `todo.md`; the Play
-view explicitly identifies its preview-only status.
+Play starts an immutable session from the current verified baseline or scenario.
+WASD/arrows move using native collision, E inspects nearby static encounters, and
+Escape pauses. Focus loss, dialogs and workspace changes pause movement; Resume
+returns keyboard focus to the canvas. Reach the exit to complete exploration.
+
+The shared canvas supports painting, fill, shape previews, undo/redo, resizing
+and camera navigation; see [Design canvas](design_canvas.md). Encounter editing
+is available in the catalogue. Pixel motifs and recovery/accessibility details
+are documented in [Visual polish](visual_polish.md).
 
 | Shortcut | Action |
 | --- | --- |

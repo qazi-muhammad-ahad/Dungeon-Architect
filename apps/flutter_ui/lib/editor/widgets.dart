@@ -41,35 +41,20 @@ class _NumericFieldState extends State<NumericField> {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 14),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 12,
-              color: EditorColors.of(context).muted,
-            ),
-          ),
-        ),
-        TextField(
-          controller: text,
-          focusNode: focus,
-          enabled: widget.enabled,
-          keyboardType: TextInputType.number,
-          style: TextStyle(fontFamily: 'Consolas', fontSize: 13),
-          onChanged: widget.onChanged,
-          decoration: InputDecoration(
-            labelText: null,
-            hintText: widget.label,
-            suffixText: widget.unit,
-            errorText: widget.error,
-          ),
-          onTapOutside: (_) => focus.unfocus(),
-        ),
-      ],
+    child: TextField(
+      controller: text,
+      focusNode: focus,
+      enabled: widget.enabled,
+      keyboardType: TextInputType.number,
+      style: TextStyle(fontFamily: 'Consolas', fontSize: 13),
+      onChanged: widget.onChanged,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        hintText: widget.label,
+        suffixText: widget.unit,
+        errorText: widget.error,
+      ),
+      onTapOutside: (_) => focus.unfocus(),
     ),
   );
 }

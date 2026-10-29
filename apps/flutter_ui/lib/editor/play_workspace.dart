@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import 'project_controller.dart';
+import 'pixel_palette.dart';
 
 class PlayWorkspace extends StatefulWidget {
   const PlayWorkspace({super.key, required this.controller});
@@ -180,7 +181,7 @@ class _PlayWorkspaceState extends State<PlayWorkspace>
               ? 'Exit disconnected from entrance. Restore a route before starting Play.'
               : !available
               ? 'Generate and solve current inputs, then apply any pending scenario before Play.'
-              : p.message,
+              : '${p.message}  /  WASD / arrows move  /  E inspects  /  Esc pauses',
         ),
         Expanded(
           child: Focus(
@@ -190,20 +191,33 @@ class _PlayWorkspaceState extends State<PlayWorkspace>
               if (!value) {
                 p.pause();
               }
+              if (mounted) setState(() {});
             },
             child: Semantics(
               label: 'Exploration canvas',
               button: true,
+              onTap: () => focus.requestFocus(),
               child: GestureDetector(
                 onTap: () => focus.requestFocus(),
-                child: ClipRect(
-                  child: SizedBox.expand(
-                    child: CustomPaint(
-                      painter: _PlayPainter(
-                        p.snapshot ?? s.payload,
-                        p.active
-                            ? Offset(p.x.toDouble(), p.y.toDouble())
-                            : null,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: focus.hasFocus
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                  child: ClipRect(
+                    child: SizedBox.expand(
+                      child: CustomPaint(
+                        painter: _PlayPainter(
+                          p.snapshot ?? s.payload,
+                          p.active
+                              ? Offset(p.x.toDouble(), p.y.toDouble())
+                              : null,
+                          MediaQuery.devicePixelRatioOf(context),
+                        ),
                       ),
                     ),
                   ),
@@ -228,14 +242,30 @@ class _PlayWorkspaceState extends State<PlayWorkspace>
 }
 
 class _PlayPainter extends CustomPainter {
-  _PlayPainter(this.payload, this.player);
+  _PlayPainter(this.payload, this.player, this.dpr);
   final Map<String, dynamic>? payload;
   final Offset? player;
+  final double dpr;
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawColor(const Color(0xff20252b), BlendMode.src);
+    canvas.drawColor(DungeonPixels.voidColor, BlendMode.src);
     final geometry = payload?['geometry'];
     if (geometry == null) {
+      final label = TextPainter(
+        text: const TextSpan(
+          text: 'Generate & solve a dungeon, then Start exploration.',
+          style: TextStyle(color: Colors.white, fontSize: 13),
+        ),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.center,
+      )..layout(maxWidth: math.max(1, size.width - 32));
+      label.paint(
+        canvas,
+        Offset(
+          (size.width - label.width) / 2,
+          (size.height - label.height) / 2,
+        ),
+      );
       return;
     }
     final floor = geometry['layers']['floor'] as List;
@@ -251,7 +281,10 @@ class _PlayPainter extends CustomPainter {
         Offset(size.width / 2, size.height / 2) -
         (center + const Offset(.5, .5)) * tile;
     canvas.save();
-    canvas.translate(origin.dx, origin.dy);
+    canvas.translate(
+      (origin.dx * dpr).round() / dpr,
+      (origin.dy * dpr).round() / dpr,
+    );
     final minX = math.max(0, (-origin.dx / tile).floor()),
         maxX = math.min(
           (floor.first as String).length,
@@ -262,44 +295,67 @@ class _PlayPainter extends CustomPainter {
           floor.length,
           ((size.height - origin.dy) / tile).ceil(),
         );
-    final paint = Paint();
+    final paint = Paint()..isAntiAlias = false;
+    Rect tileRect(dynamic point) =>
+        Rect.fromLTWH(point['x'] * tile, point['y'] * tile, tile, tile);
+    final walls = geometry['layers']['walls'] as List?;
     for (var y = minY; y < maxY; y++) {
       for (var x = minX; x < maxX; x++) {
+        final r = Rect.fromLTWH(x * tile, y * tile, tile, tile);
         if (floor[y][x] == '1') {
-          paint.color = const Color(0xff808b82);
-          canvas.drawRect(Rect.fromLTWH(x * tile, y * tile, tile, tile), paint);
+          paint.color = DungeonPixels.floor;
+          canvas.drawRect(DungeonPixels.snap(r, dpr), paint);
+          DungeonPixels.motif(canvas, r, 'floor', dpr);
+        } else if (walls != null && walls[y][x] == '1') {
+          paint.color = DungeonPixels.wall;
+          canvas.drawRect(DungeonPixels.snap(r, dpr), paint);
+          DungeonPixels.motif(canvas, r, 'wall', dpr);
         }
       }
     }
-    void marker(dynamic point, Color color, double radius) {
-      paint.color = color;
-      canvas.drawCircle(
-        Offset((point['x'] + .5) * tile, (point['y'] + .5) * tile),
-        tile * radius,
-        paint,
-      );
+    for (final door in geometry['doors'] as List? ?? []) {
+      for (final point in door['tiles'] as List) {
+        DungeonPixels.motif(canvas, tileRect(point), 'door', dpr);
+      }
     }
-
     for (final actor in payload?['allocation']?['actors'] as List? ?? []) {
-      marker(actor['tile'], const Color(0xffe8b96b), .24);
+      DungeonPixels.motif(canvas, tileRect(actor['tile']), 'encounter', dpr);
     }
-    marker(geometry['entrance_marker'], const Color(0xff58ca95), .42);
-    marker(geometry['exit_marker'], const Color(0xffc7a8ff), .48);
+    DungeonPixels.motif(
+      canvas,
+      tileRect(geometry['entrance_marker']),
+      'entrance',
+      dpr,
+    );
+    DungeonPixels.motif(canvas, tileRect(geometry['exit_marker']), 'exit', dpr);
+    // Font size is independent of the world tile scale.
     final exit = geometry['exit_marker'];
     final label = TextPainter(
       text: const TextSpan(
         text: 'EXIT',
-        style: TextStyle(color: Colors.white, fontSize: 11),
+        style: TextStyle(
+          color: Colors.white,
+          backgroundColor: DungeonPixels.voidColor,
+          fontSize: 11,
+        ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
     label.paint(canvas, Offset(exit['x'] * tile, exit['y'] * tile - 14));
     if (player != null) {
-      marker({'x': player!.dx, 'y': player!.dy}, Colors.white, .32);
+      DungeonPixels.motif(
+        canvas,
+        Rect.fromLTWH(player!.dx * tile, player!.dy * tile, tile, tile),
+        'player',
+        dpr,
+      );
     }
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _PlayPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _PlayPainter oldDelegate) =>
+      oldDelegate.payload != payload ||
+      oldDelegate.player != player ||
+      oldDelegate.dpr != dpr;
 }

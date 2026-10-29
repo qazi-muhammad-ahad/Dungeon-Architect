@@ -367,20 +367,22 @@ Evidence (2026-10-28): native temporary floor/scenario snapshots preserve baseli
 
 Dependencies: Core Design/Analyze/Play flows are functional.
 
-- [ ] P16.01 Establish a coherent pixel-art tile/actor palette and record asset sources/licenses.
-- [ ] P16.02 Render pixel art crisply at supported scales; keep UI text independent of world scaling.
-- [ ] P16.03 Improve map layering, walls, doors, selection outlines, and role markers without hiding diagnostics.
-- [ ] P16.04 Review screen hierarchy and panel density; keep Analyze overlays optional.
-- [ ] P16.05 Add helpful empty states, invalid-field explanations, loading/cancel states, and recovery actions.
-- [ ] P16.06 Audit keyboard navigation, focus order, readable contrast, and non-color-only status indicators.
-- [ ] P16.07 Test supported window sizes and DPI settings, long room/pack names, and large catalogues.
-- [ ] P16.08 Run repeated edit/generate/optimize/cancel/play sessions and check memory/handle cleanup.
-- [ ] P16.09 Run malformed-project and randomized small-input checks through native entry points.
-- [ ] P16.10 Verify undo, failed operations, and app close never silently discard unsaved project changes.
-- [ ] P16.11 Resolve correctness and responsiveness defects before cosmetic refinements.
+- [x] P16.01 Establish a coherent pixel-art tile/actor palette and record asset sources/licenses.
+- [x] P16.02 Render pixel art crisply at supported scales; keep UI text independent of world scaling.
+- [x] P16.03 Improve map layering, walls, doors, selection outlines, and role markers without hiding diagnostics.
+- [x] P16.04 Review screen hierarchy and panel density; keep Analyze overlays optional.
+- [x] P16.05 Add helpful empty states, invalid-field explanations, loading/cancel states, and recovery actions.
+- [x] P16.06 Audit keyboard navigation, focus order, readable contrast, and non-color-only status indicators.
+- [x] P16.07 Test supported window sizes and DPI settings, long room/pack names, and large catalogues.
+- [x] P16.08 Run repeated edit/generate/optimize/cancel/play sessions and check memory/handle cleanup.
+- [x] P16.09 Run malformed-project and randomized small-input checks through native entry points.
+- [x] P16.10 Verify undo, failed operations, and app close never silently discard unsaved project changes.
+- [x] P16.11 Resolve correctness and responsiveness defects before cosmetic refinements.
 
 Exit checks:
-- [ ] Main workflows remain legible, responsive, and recoverable under normal and invalid inputs.
+- [x] Main workflows remain legible, responsive, and recoverable under normal and invalid inputs.
+
+Evidence (2026-10-29): original code-native pixel palette and art provenance; device-pixel-snapped world rendering with independent UI text, distinct role/actor/diagnostic shapes and selection contrast. Persistent field labels, Play focus/help/empty states, status semantics and panel-density controls reviewed. Fixed unapplied-preview dirty/close protection, workspace-switch preview loss/lock, and stale geometry detail indexing after resize. Native Release 20/20 suites, Flutter 54/54 tests, clean analyzer, CSP/self-hosted release and deployment artifact checks pass. Real Chrome validates five viewport/DPR configurations (800x600 through 1600x1000, DPR 1/1.25/2), valid 250-byte long names and 100-entry catalogues including real scrolling to Pack 99, keyboard/numeric recovery, cancellation and retained results. Repeated native/worker/file lifecycle checks pass; worker/pending-handle cleanup verified without an absolute heap-leak claim. Screenshots visually reviewed. See [visual polish and recovery](docs/visual_polish.md).
 
 ## Phase 17 - Package and verify the application
 
