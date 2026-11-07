@@ -1,19 +1,40 @@
 # Analyze traces and measured benchmarks
 
-Analyze reads real C++ events after completion. Play, pause, step, restart, speed
-and seek operate on an immutable copy; none can change solver input or output.
-The map highlights the current event's region, room, door tile or corridor. The
-BSP tree represents the accepted partition tree; map clicks and tree selection
-share a region selection. Fixed rooms are reserved source features, separately
-listed rather than portrayed as generated leaves. Optional overlays keep these
-diagnostics out of Design. Allocation reconstruction events identify the room and
-actual pack subset, with canonical pack bit order in the DP inspector.
+Analyze replays recorded C++ events from the accepted run. **All algorithms**
+follows generation, routing, and allocation in recorded order. Select a stage
+to replay its events from the same run. Changing selection pauses at its start.
+An allocation-only run has no new generation or routing events.
 
-Detailed teaching traces are enabled only for at most six packs and eight rooms.
-Candidate events describe only submasks actually examined; the solver stops at
-its first feasible predecessor. A feasible state is not a claim that every
-candidate was examined. Full workloads emit room summaries and reconstruction.
-Non-success outcomes never acquire an optimality label.
+Playback defaults to one event per second. Choose a preset or enter a finite
+positive multiplier. High speeds batch visual updates while keeping captured
+events available for Back, Next, and seeking. **Reduce animation** keeps the same
+highlights and descriptions. The compact ribbon sits above the full-width map.
+Drag to pan, scroll to zoom around the pointer, or use Fit and the zoom buttons.
+The map highlights recorded regions and allocation reconstruction using accepted
+geometry as context. Corridor replay starts with known room interiors and builds
+the recorded work cumulatively. Blue squares mark expanded BFS anchors, green
+outlines show the captured queued frontier, blue edges show actual parents, gold
+shows reverse parent reconstruction, and stone footprints show width carving.
+Previously completed corridors remain visible during the next connection.
+
+Native routing events batch up to 32 actual search operations or four reverse/
+carve anchors. Each connection records at most 1024 search operations and 512
+reverse/carve anchors. Summary events report omitted steps. Global bounded event
+capture and native sampling can omit additional batches; gaps are labelled.
+Completed corridor summaries may reveal accepted final corridor context, while
+uncaptured intermediate search or carve steps are never invented. Seeking backward
+rebuilds the selected prefix and removes its future floor/search state.
+
+Allocation replay shows pack sprites, names, slots and threat with room capacity,
+role/tag/dimension rules, actual predecessor feasibility and the final-inventory
+budget. Candidate sprites are labelled trials; reconstruction transfers the
+selected packs to their accepted spawn positions and retains earlier assignments.
+Large runs label representative recorded transitions and room summaries.
+
+Detailed teaching traces are enabled for at most six packs and eight eligible rooms.
+Routed runs compare all fitting predecessors to choose the preferred placement.
+Larger workloads emit room summaries and reconstruction. Unsuccessful attempts
+preserve the previous accepted replay.
 
 Each native event has schema_version 1, run_id, input_revision, sequence, stage,
 affected_ids and event payload. input_revision is an FNV-1a identity of exact
@@ -49,9 +70,9 @@ process RSS. estimated_bytes is a conservative logical solver-table estimate;
 neither is an observed process-memory peak. The 64 MiB DP table guard and configured
 work/time limits still apply.
 
-## In-app benchmark workflow
+## Previous benchmark workflow
 
-The Benchmarks tab previews an independent controlled rectangle fixture. Select
+The former Benchmarks tab previewed an independent controlled rectangle fixture. Select
 area, room count or active packs, comma-separated values, 2-5 repeats and a fixed
 seed. Other axes remain 150 x 150, 16 rooms and 12 packs. Area points must be perfect
 squares with sides 64-512. This fixture uses 4-8 tile rooms, width-one corridors,

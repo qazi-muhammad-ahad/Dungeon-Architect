@@ -2,8 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+
+import 'template_catalogue.dart';
 
 import 'project_controller.dart';
 import 'pixel_palette.dart';
@@ -49,9 +52,9 @@ class _PlayWorkspaceState extends State<PlayWorkspace>
   Future<void> interact() async {
     final actor = c.play.nearbyActor();
     c.play.pause();
-    final packs =
-        c.play.snapshot?['source_project']?['source']?['packs'] as List? ??
-        c.catalogue;
+    final packs = effectivePacks(
+      c.play.snapshot?['source_project']?['source'] as Map?,
+    );
     final matching = packs.where((p) => p['id'] == actor?['pack_id']);
     final pack = matching.isEmpty ? null : matching.first;
     await showDialog<void>(
@@ -121,6 +124,8 @@ class _PlayWorkspaceState extends State<PlayWorkspace>
         !s.stale &&
         s.exitReachable &&
         s.payload?['allocation'] != null;
+    final markerCount =
+        (s.payload?['allocation']?['actors'] as List? ?? []).length;
     return Column(
       children: [
         Padding(
@@ -180,8 +185,12 @@ class _PlayWorkspaceState extends State<PlayWorkspace>
           !s.stale && s.metadata['exit_reachable'] == false
               ? 'Exit disconnected from entrance. Restore a route before starting Play.'
               : !available
-              ? 'Generate and solve current inputs, then apply any pending scenario before Play.'
-              : '${p.message}  /  WASD / arrows move  /  E inspects  /  Esc pauses',
+              ? c.stale
+                    ? 'Inputs changed. Generate with encounters or place encounters again before exploring.'
+                    : s.stale
+                    ? 'Apply or restore the pending scenario before exploring.'
+                    : 'Generate with encounters, then choose Start exploration.'
+              : '${p.active ? p.message : 'Ready to explore. Choose Start exploration.'} · $markerCount encounter markers${markerCount == 0 ? ' placed by this allocation' : ' (dungeon sprites; press E within two tiles)'} · WASD/arrows move · Esc pauses',
         ),
         Expanded(
           child: Focus(
@@ -213,9 +222,7 @@ class _PlayWorkspaceState extends State<PlayWorkspace>
                       child: CustomPaint(
                         painter: _PlayPainter(
                           p.snapshot ?? s.payload,
-                          p.active
-                              ? Offset(p.x.toDouble(), p.y.toDouble())
-                              : null,
+                          p.active ? p.motion : null,
                           MediaQuery.devicePixelRatioOf(context),
                         ),
                       ),
@@ -242,9 +249,11 @@ class _PlayWorkspaceState extends State<PlayWorkspace>
 }
 
 class _PlayPainter extends CustomPainter {
-  _PlayPainter(this.payload, this.player, this.dpr);
+  _PlayPainter(this.payload, this.motion, this.dpr) : super(repaint: motion);
   final Map<String, dynamic>? payload;
-  final Offset? player;
+  final ValueListenable<(double, double)>? motion;
+  Offset? get player =>
+      motion == null ? null : Offset(motion!.value.$1, motion!.value.$2);
   final double dpr;
   @override
   void paint(Canvas canvas, Size size) {
@@ -253,7 +262,7 @@ class _PlayPainter extends CustomPainter {
     if (geometry == null) {
       final label = TextPainter(
         text: const TextSpan(
-          text: 'Generate & solve a dungeon, then Start exploration.',
+          text: 'Generate with encounters, then Start exploration.',
           style: TextStyle(color: Colors.white, fontSize: 13),
         ),
         textDirection: TextDirection.ltr,
@@ -305,11 +314,11 @@ class _PlayPainter extends CustomPainter {
         if (floor[y][x] == '1') {
           paint.color = DungeonPixels.floor;
           canvas.drawRect(DungeonPixels.snap(r, dpr), paint);
-          DungeonPixels.motif(canvas, r, 'floor', dpr);
+          DungeonPixels.motif(canvas, r, 'floor', dpr, variant: x + y * 7);
         } else if (walls != null && walls[y][x] == '1') {
           paint.color = DungeonPixels.wall;
           canvas.drawRect(DungeonPixels.snap(r, dpr), paint);
-          DungeonPixels.motif(canvas, r, 'wall', dpr);
+          DungeonPixels.motif(canvas, r, 'wall', dpr, variant: x + y * 7);
         }
       }
     }
@@ -318,8 +327,26 @@ class _PlayPainter extends CustomPainter {
         DungeonPixels.motif(canvas, tileRect(point), 'door', dpr);
       }
     }
-    for (final actor in payload?['allocation']?['actors'] as List? ?? []) {
-      DungeonPixels.motif(canvas, tileRect(actor['tile']), 'encounter', dpr);
+    final actors = payload?['allocation']?['actors'] as List? ?? [];
+    String? playerOnMarker;
+    for (final actor in actors) {
+      final location = actor['tile'];
+      if (player?.dx == location['x'] && player?.dy == location['y']) {
+        playerOnMarker = DungeonPixels.encounterKind(
+          actor as Map,
+          payload?['source_project']?['source'] as Map?,
+        );
+      } else {
+        DungeonPixels.motif(
+          canvas,
+          tileRect(location),
+          DungeonPixels.encounterKind(
+            actor as Map,
+            payload?['source_project']?['source'] as Map?,
+          ),
+          dpr,
+        );
+      }
     }
     DungeonPixels.motif(
       canvas,
@@ -343,12 +370,22 @@ class _PlayPainter extends CustomPainter {
     )..layout();
     label.paint(canvas, Offset(exit['x'] * tile, exit['y'] * tile - 14));
     if (player != null) {
-      DungeonPixels.motif(
-        canvas,
-        Rect.fromLTWH(player!.dx * tile, player!.dy * tile, tile, tile),
-        'player',
-        dpr,
+      final playerTile = Rect.fromLTWH(
+        player!.dx * tile,
+        player!.dy * tile,
+        tile,
+        tile,
       );
+      DungeonPixels.motif(canvas, playerTile, 'player', dpr);
+      if (playerOnMarker != null) {
+        final corner = playerTile.topRight + const Offset(-4, 4);
+        DungeonPixels.motif(
+          canvas,
+          Rect.fromCircle(center: corner, radius: 4),
+          playerOnMarker,
+          dpr,
+        );
+      }
     }
     canvas.restore();
   }
@@ -356,6 +393,6 @@ class _PlayPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _PlayPainter oldDelegate) =>
       oldDelegate.payload != payload ||
-      oldDelegate.player != player ||
+      oldDelegate.motion != motion ||
       oldDelegate.dpr != dpr;
 }

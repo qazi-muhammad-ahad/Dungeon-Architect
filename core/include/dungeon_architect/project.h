@@ -105,6 +105,10 @@ struct Pack {
     std::vector<RoomRole> allowed_roles;
     std::vector<std::string> required_tags;
 };
+struct TemplateCatalogue {
+    std::string version;
+    std::vector<Pack> packs;
+};
 struct Project {
     std::string name = "Untitled dungeon";
     Settings settings;
@@ -112,6 +116,11 @@ struct Project {
     std::vector<std::uint8_t> allowed_mask;
     std::vector<Room> rooms;
     std::vector<Pack> packs;
+    std::optional<TemplateCatalogue> template_catalogue;
+
+    const std::vector<Pack>& effective_packs() const noexcept {
+        return packs.empty() && template_catalogue ? template_catalogue->packs : packs;
+    }
 };
 
 struct SpawnPosition { SpawnId id; Tile tile; };

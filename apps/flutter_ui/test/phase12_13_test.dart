@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:dungeon_architect/editor/analysis_controller.dart';
-import 'package:dungeon_architect/editor/analysis_panel.dart';
+import 'package:dungeon_architect/editor/preview.dart';
 import 'package:dungeon_architect/editor/project_controller.dart';
+import 'package:dungeon_architect/editor/trace_explanations.dart';
 import 'package:dungeon_architect/engine/engine.dart';
+import 'package:dungeon_architect/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 
@@ -110,6 +113,33 @@ class BenchmarkEngine extends Engine {
 }
 
 void main() {
+  test('DP reconstruction reports the recorded post-assignment remainder', () {
+    final record = {
+      'stage': 'allocation',
+      'event': {
+        'kind': 'reconstruct',
+        'room_id': 'room-2',
+        'mask': 1,
+        'subset': 2,
+      },
+    };
+    final result = {
+      'stages': {
+        'allocation': {
+          'pack_bit_order': ['archer', 'guard'],
+        },
+      },
+    };
+    final decision = describeTrace(record, result)!;
+    expect(decision.$1, 'Assignment reconstructed');
+    expect(decision.$2, contains('guard'));
+    expect(decision.$2, contains('room-2'));
+    expect(
+      decision.$2,
+      contains('Inventory before 3 · assigned subset 2 · remaining 1.'),
+    );
+  });
+
   test(
     'new benchmark batch does not pool medians across different seeds',
     () async {
@@ -139,7 +169,7 @@ void main() {
     },
   );
   testWidgets(
-    'Analyze exposes optional overlays, linked BSP and real trace inspection',
+    'Analyze shows only the trace ribbon above a pannable and zoomable map',
     (tester) async {
       final c = ProjectController(
         engine: TelemetryEngine(),
@@ -149,50 +179,53 @@ void main() {
       await c.initialize();
       await c.load(source);
       await c.run();
-      c.result!.document['result']['layout']['partitions'] = [
-        {
-          'id': 0,
-          'parent': -1,
-          'axis': 'leaf',
-          'cut': 0,
-          'room_id': 'room-1',
-          'requested_rooms': 1,
-          'bounds': {'x': 1, 'y': 1, 'width': 4, 'height': 4},
-        },
-      ];
-      tester.view.physicalSize = const Size(1200, 800);
+      c.result!.document['result']['layout']['rooms'][0].addAll({
+        'name': 'Study',
+        'role': 'normal',
+        'lock_position': false,
+      });
+      tester.view.physicalSize = const Size(1600, 1000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AnimatedBuilder(
-              animation: Listenable.merge([c, c.playback, c.benchmarks]),
-              builder: (_, child) => AnalyzePanel(controller: c),
-            ),
-          ),
-        ),
-      );
-      expect(find.byType(FilterChip), findsNWidgets(7));
-      await tester.tap(find.widgetWithText(FilterChip, 'doors'));
+      await tester.pumpWidget(DungeonArchitectApp(controller: c));
+      await tester.tap(find.text('Analyze'));
       await tester.pump();
-      expect(c.overlays, contains('doors'));
-      await tester.tap(find.byTooltip('Step trace'));
+      expect(find.text('All algorithms'), findsOneWidget);
+      for (final removed in [
+        'Advanced details',
+        'Final BSP tree',
+        'Exact DP details',
+        'Apply scenario',
+        'Explorer',
+        'Inspector',
+      ]) {
+        expect(find.text(removed), findsNothing);
+      }
+      await tester.tap(find.byTooltip('Next'));
       await tester.pump();
       expect(c.playback.cursor, 1);
-      await tester.tap(find.text('Inspect trace JSON'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('fnv1a32-123'), findsWidgets);
-      await tester.tap(find.text('Close'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Trace').first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('BSP tree').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('Region 0').first);
+      expect(find.textContaining('Room generation (BSP) ·'), findsOneWidget);
+      final canvas = find.byWidgetPredicate(
+        (widget) => widget is CustomPaint && widget.painter is CanvasPainter,
+      );
+      expect(tester.getSize(canvas).width, 1600);
+      expect(tester.getSize(canvas).height, greaterThan(690));
+      final painter =
+          tester.widget<CustomPaint>(canvas).painter as CanvasPainter;
+      final origin = painter.camera.origin;
+      final scale = painter.camera.scale;
+      await tester.drag(
+        canvas,
+        const Offset(75, 31),
+        kind: PointerDeviceKind.mouse,
+      );
       await tester.pump();
-      expect(c.selectedPartition, 0);
+      expect(painter.camera.origin, origin + const Offset(75, 31));
+      expect(c.playback.cursor, 1);
+      await tester.tap(find.byTooltip('Zoom in'));
+      await tester.pump();
+      expect(painter.camera.scale, greaterThan(scale));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
@@ -200,7 +233,10 @@ void main() {
   testWidgets(
     'playback controls bound time, restart and never mutate solver events',
     (tester) async {
-      final trace = TracePlayback();
+      final start = tester.binding.clock.now();
+      final trace = TracePlayback(
+        elapsed: () => tester.binding.clock.now().difference(start),
+      );
       addTearDown(trace.dispose);
       final original = List.generate(5, event);
       final before = jsonEncode(original);
@@ -229,6 +265,112 @@ void main() {
       expect(jsonEncode(original), before);
     },
   );
+  testWidgets('trace pacing follows elapsed time, including batched speeds', (
+    tester,
+  ) async {
+    final start = tester.binding.clock.now();
+    final trace = TracePlayback(
+      elapsed: () => tester.binding.clock.now().difference(start),
+    );
+    addTearDown(trace.dispose);
+    trace.load(List.generate(120, event), revision: 3, runId: 11);
+    expect(trace.speed, 1);
+    trace.play();
+    await tester.pump(const Duration(milliseconds: 999));
+    expect(trace.cursor, 0);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(trace.cursor, 1);
+    trace.setSpeed(2);
+    await tester.pump(const Duration(milliseconds: 499));
+    expect(trace.cursor, 1);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(trace.cursor, 2);
+
+    for (final speed in [5.0, 10.0, 50.0, 100.0, 2.5]) {
+      trace.restart();
+      trace.setSpeed(speed);
+      trace.play();
+      // Allow timer quantization at the 800 ms boundary. At 100× the next
+      // visual batch is still scheduled for 816 ms.
+      await tester.pump(const Duration(milliseconds: 805));
+      expect(trace.cursor, (speed * .8).round(), reason: '$speed×');
+      expect(trace.currentOriginalIndex, trace.cursor - 1);
+    }
+    for (final invalid in [0.0, -1.0, double.nan, double.infinity]) {
+      expect(() => trace.setSpeed(invalid), throwsArgumentError);
+      expect(trace.speed, 2.5);
+    }
+    trace.setSpeed(100);
+    trace.seek(60);
+    expect(trace.playing, false);
+    await tester.pump(const Duration(seconds: 1));
+    expect(trace.cursor, 60);
+    trace.back();
+    expect(trace.current!['sequence'], 58);
+    trace.play();
+    await tester.pump(const Duration(seconds: 1));
+    expect(trace.cursor, 120);
+    expect(trace.playing, false);
+  });
+
+  testWidgets('selection replays the same original events in recorded order', (
+    tester,
+  ) async {
+    final trace = TracePlayback();
+    addTearDown(trace.dispose);
+    trace.load(
+      [
+        event(9),
+        event(12),
+        {...event(20), 'stage': 'routing'},
+        {...event(35), 'stage': 'routing'},
+        {...event(42), 'stage': 'allocation'},
+      ],
+      revision: 3,
+      runId: 11,
+      truncated: true,
+      dropped: 50,
+    );
+    final original = trace.events;
+    expect(trace.selection, TraceSelection.all);
+    expect(trace.selectedIndices, [0, 1, 2, 3, 4]);
+    trace.play();
+    trace.setSelection(TraceSelection.routing);
+    expect(trace.playing, false);
+    expect(trace.cursor, 0);
+    expect(trace.selectedIndices, [2, 3]);
+    trace.step();
+    expect(trace.currentOriginalIndex, 2);
+    expect(trace.current, same(original[2]));
+    trace.seek(999);
+    expect(trace.currentOriginalIndex, 3);
+    trace.back();
+    expect(trace.current!['sequence'], 20);
+    trace.setSelection(TraceSelection.allocation);
+    trace.step();
+    expect(trace.currentOriginalIndex, 4);
+    expect(trace.current!['sequence'], 42);
+    trace.setSelection(TraceSelection.generation);
+    expect(trace.selectedIndices, [0, 1]);
+    trace.setSelection(TraceSelection.all);
+    expect(trace.events, same(original));
+    expect(trace.truncated, true);
+    expect(trace.dropped, 50);
+
+    trace.setSelection(TraceSelection.generation);
+    trace.load(
+      [
+        {...event(0), 'stage': 'allocation'},
+      ],
+      revision: 4,
+      runId: 12,
+    );
+    expect(trace.events.length, 1);
+    expect(trace.selectedEvents, isEmpty);
+    trace.play();
+    expect(trace.playing, false);
+  });
+
   test('playback owns a deeply immutable bounded event snapshot', () {
     final trace = TracePlayback();
     addTearDown(trace.dispose);
@@ -262,7 +404,7 @@ void main() {
         final values = switch (axis) {
           BenchmarkAxis.area => [4096, 22500],
           BenchmarkAxis.rooms => [10, 20],
-          BenchmarkAxis.packs => [12, 14],
+          BenchmarkAxis.packs => [0, 12, 14],
         };
         final config = BenchmarkConfig(axis: axis, values: values, seed: 123);
         for (final value in values) {
@@ -279,6 +421,7 @@ void main() {
             axis == BenchmarkAxis.area ? value : 22500,
           );
           expect(project['source']['rooms'], isEmpty);
+          expect(project['source'].containsKey('template_catalogue'), false);
           expect(project['source']['allowed_mask'].length, s['rows']);
         }
       }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
@@ -7,6 +8,7 @@ import 'exact_json.dart';
 import 'analysis_controller.dart';
 import 'scenario_controller.dart';
 import 'play_controller.dart';
+import 'template_catalogue.dart';
 
 enum EditorView { design, analyze, play }
 
@@ -49,6 +51,12 @@ class ProjectController extends ChangeNotifier {
   Map<String, dynamic> analysisMetrics = {};
   final Set<String> overlays = {'mask', 'room IDs', 'assignments'};
   int? selectedPartition;
+  bool reduceTraceMotion = false;
+  void setReduceTraceMotion(bool value) {
+    reduceTraceMotion = value;
+    _notify();
+  }
+
   String analysisOutcome = 'No completed run';
   void toggleOverlay(String key) {
     if (!overlays.add(key)) overlays.remove(key);
@@ -60,7 +68,10 @@ class ProjectController extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> _captureAnalysis(EngineResult attempt, int stamp) async {
+  Future<void Function()?> _captureAnalysis(
+    EngineResult attempt,
+    int stamp,
+  ) async {
     try {
       final metric = await engine.metrics();
       final events = <Map<String, dynamic>>[];
@@ -68,41 +79,56 @@ class ProjectController extends ChangeNotifier {
       var truncated = false;
       while (events.length < TracePlayback.maxEvents) {
         final batch = await engine.trace(cursor: cursor);
-        if (disposed || stamp != revision) return;
-        runId = batch['run_id'] as int? ?? batch['job'] as int? ?? 0;
-        for (final raw in batch['events'] as List? ?? []) {
-          final event = Map<String, dynamic>.from(raw as Map)
-            ..['editor_revision'] = stamp;
-          events.add(event);
+        if (disposed || stamp != revision || state == RunState.cancelling) {
+          return null;
         }
+        runId = batch['run_id'] as int? ?? batch['job'] as int? ?? 0;
+        final captured = batch['events'] as List? ?? [];
+        events.addAll(
+          captured
+              .take(TracePlayback.maxEvents - events.length)
+              .map((event) => Map<String, dynamic>.from(event as Map)),
+        );
         dropped = batch['dropped_events'] as int? ?? 0;
         truncated = batch['truncated'] == true;
         final next = batch['next_cursor'] as int? ?? cursor;
-        if (next == cursor || next >= (batch['total'] as int? ?? 0)) break;
+        final total = batch['total'] as int? ?? 0;
+        if (total > TracePlayback.maxEvents) {
+          truncated = true;
+          dropped += total - TracePlayback.maxEvents;
+        }
+        if (next == cursor || next >= total) break;
         cursor = next;
       }
-      if (disposed || stamp != revision) return;
-      analysisMetrics = metric;
-      analysisOutcome =
-          '${attempt.document['outcome']} · ${attempt.document['optimal'] == true ? 'exact allocation verified' : 'no optimality claim'}';
-      playback.load(
-        events,
-        revision: stamp,
-        runId: runId,
-        truncated: truncated,
-        dropped: dropped,
-      );
-      _notify();
-    } catch (e) {
-      if (!disposed && stamp == revision) {
-        analysisOutcome = "Trace unavailable: $e";
-        playback.load([], revision: stamp, runId: 0);
-        _notify();
+      if (disposed || stamp != revision || state == RunState.cancelling) {
+        return null;
       }
+      return () {
+        analysisMetrics = metric;
+        analysisOutcome =
+            '${attempt.document['outcome']} · ${attempt.document['optimal'] == true ? 'exact allocation verified' : 'no optimality claim'}';
+        for (final event in events) {
+          event['editor_revision'] = revision;
+        }
+        playback.load(
+          events,
+          revision: revision,
+          runId: runId,
+          truncated: truncated,
+          dropped: dropped,
+        );
+      };
+    } catch (e) {
+      return () {
+        analysisOutcome = 'Trace unavailable: $e';
+        analysisMetrics = {};
+        playback.load([], revision: revision, runId: 0);
+      };
     }
   }
 
   int documentEpoch = 0;
+  int seedFieldEpoch = 0;
   Map<String, dynamic>? document;
   String canonical = '', filename = 'untitled.dungeon.json';
   String? saved;
@@ -137,6 +163,12 @@ class ProjectController extends ChangeNotifier {
           validatedRevision != revision ||
           fieldErrors.isNotEmpty);
   bool get stale => result != null && resultRevision != revision;
+  bool get showingPreviousResult =>
+      result != null &&
+      (stale ||
+          state == RunState.failed ||
+          state == RunState.invalid ||
+          state == RunState.idle);
   bool get canRun =>
       ready &&
       document != null &&
@@ -171,16 +203,54 @@ class ProjectController extends ChangeNotifier {
 
   Map<String, dynamic>? get payload =>
       result?.document['result'] as Map<String, dynamic>?;
+  int? get acceptedSeed =>
+      result?.document['seed'] as int? ??
+      payload?['source_project']?['source']?['settings']?['seed'] as int?;
   List<dynamic> get rooms =>
       payload?['layout']?['rooms'] as List<dynamic>? ?? [];
   List<dynamic> get catalogue => source['packs'] as List? ?? [];
-  int get activePackCount => catalogue.where((p) => p['active'] == true).length;
+  bool get usingTemplates =>
+      catalogue.isEmpty && source['template_catalogue'] != null;
+  List<dynamic> get effectiveCatalogue => effectivePacks(source);
+  int get activePackCount =>
+      effectiveCatalogue.where((p) => p['active'] == true).length;
+  bool get canRandomizeSeed => canRun;
+  String get randomizeSeedHint => switch (true) {
+    _ when fieldErrors.isNotEmpty => 'Correct the highlighted fields first.',
+    _ when canvasDraft => 'Apply or cancel the canvas draft first.',
+    _ when validating || busy || scenario.busy =>
+      'Wait for the current operation.',
+    _ => 'Choose a new seed, then generate with the same settings.',
+  };
+  void randomizeSeed() {
+    if (!canRandomizeSeed) return;
+    const span = 4294967296;
+    final random = math.Random();
+    var next = random.nextInt(65536) * 65536 + random.nextInt(65536);
+    if (next == settings['seed']) next = (next + 1) % span;
+    seedFieldEpoch++;
+    editSetting('seed', '$next', min: BigInt.zero, max: BigInt.from(span - 1));
+  }
+
   bool get geometryCurrent =>
       result != null && resultGeometryRevision == geometryRevision;
   bool get canOptimize =>
       canRun && geometryCurrent && activePackCount <= exactPackLimit;
   Map<String, dynamic>? get allocation =>
       payload?['allocation'] as Map<String, dynamic>?;
+  String get encounterSummary {
+    final accepted = allocation;
+    if (accepted == null) {
+      return result == null
+          ? '$activePackCount active packs · generate with encounters.'
+          : 'Encounters not allocated yet · use Place encounters.';
+    }
+    final placed = (accepted['assignments'] as List? ?? []).length;
+    final markers = (accepted['actors'] as List? ?? []).length;
+    final unused = (accepted['unused'] as List? ?? []).length;
+    return '${placed + unused} active packs · $placed placed packs · $markers markers · $unused unused packs';
+  }
+
   List<dynamic> get editableRooms {
     final byId = <String, dynamic>{for (final r in rooms) r['id'] as String: r};
     for (final r in source['rooms'] as List? ?? []) {
@@ -199,7 +269,8 @@ class ProjectController extends ChangeNotifier {
   }
 
   String nextRoomId() => _nextId('room', editableRooms);
-  String nextPackId() => _nextId('pack', catalogue);
+  String nextPackId() =>
+      _nextId('pack', [...catalogue, ...pinnedPacks(source)]);
   void _notify() {
     if (scenario.revision != revision ||
         !identical(scenario.baseline, result)) {
@@ -280,14 +351,27 @@ class ProjectController extends ChangeNotifier {
     validating = true;
     _notify();
     try {
-      final checked = await _normalize(raw, fresh: fresh);
+      var checked = await _normalize(raw, fresh: fresh);
       if (disposed) return false;
       if (!checked.succeeded) {
         note('Open failed: ${_problem(checked)}');
         return false;
       }
-      final text = checked.document['project_json'] as String;
-      final next = decodeExact(text) as Map<String, dynamic>;
+      final original = checked.document['project_json'] as String;
+      var text = original;
+      var next = decodeExact(text) as Map<String, dynamic>;
+      final nextSource = next['source'] as Map<String, dynamic>;
+      if (!nextSource.containsKey('template_catalogue')) {
+        nextSource['template_catalogue'] = starterCatalogue(nextSource);
+        checked = await _normalize(encodeExact(next));
+        if (disposed) return false;
+        if (!checked.succeeded) {
+          note('Open failed: ${_problem(checked)}');
+          return false;
+        }
+        text = checked.document['project_json'] as String;
+        next = decodeExact(text) as Map<String, dynamic>;
+      }
       document = next;
       editorAnalysis =
           checked.document['editor_analysis'] as Map<String, dynamic>? ?? {};
@@ -454,7 +538,7 @@ class ProjectController extends ChangeNotifier {
     if (!canRun) return;
     if (!geometryOnly && activePackCount > exactPackLimit) {
       note(
-        'Exact optimization supports at most $exactPackLimit active packs. Deactivate catalogue entries or use Generate only.',
+        'Exact optimization supports at most $exactPackLimit active packs. Deactivate catalogue entries or use Generate layout only.',
       );
       return;
     }
@@ -537,6 +621,7 @@ class ProjectController extends ChangeNotifier {
               : 'Cancelled. The last valid result was kept.',
         );
       } else if (next.succeeded) {
+        EngineResult? acceptedSource;
         if (searchAttempt > 1) {
           final checked = await _normalize(winningSource);
           if (disposed) return;
@@ -550,36 +635,44 @@ class ProjectController extends ChangeNotifier {
             return;
           }
           if (!checked.succeeded) throw StateError(_problem(checked));
-          canonical = checked.document['project_json'] as String;
+          acceptedSource = checked;
+        }
+        final publishAnalysis = await _captureAnalysis(next, stamp);
+        if (disposed) return;
+        if (revision != stamp || state == RunState.cancelling) {
+          state = fieldErrors.isNotEmpty
+              ? RunState.invalid
+              : stale
+              ? RunState.stale
+              : RunState.idle;
+          note(
+            'Input changed or cancelled while preparing analysis. Previous result retained.',
+          );
+          return;
+        }
+        if (acceptedSource != null) {
+          seedFieldEpoch++;
+          canonical = acceptedSource.document['project_json'] as String;
           document = decodeExact(canonical) as Map<String, dynamic>;
           editorAnalysis =
-              checked.document['editor_analysis'] as Map<String, dynamic>? ??
+              acceptedSource.document['editor_analysis']
+                  as Map<String, dynamic>? ??
               {};
           revision++;
           geometryRevision++;
           allocationRevision++;
           validatedRevision = revision;
         }
-        final analysisStamp = revision;
-        await _captureAnalysis(next, analysisStamp);
-        if (disposed) return;
-        if (revision != analysisStamp || state == RunState.cancelling) {
-          state = stale ? RunState.stale : RunState.idle;
-          note(
-            'Input changed or cancelled while preparing analysis. Previous result retained.',
-          );
-          return;
-        }
         result = next;
         resultRevision = revision;
         resultGeometryRevision = geometryRevision;
         state = RunState.successful;
+        publishAnalysis?.call();
         if (!rooms.any((r) => r['id'] == selectedRoom)) selectedRoom = null;
         note(
-          'Completed. ${geometryOnly ? 'Geometry verified; Optimize to allocate encounters.' : 'Exact allocation verified.'} First valid solution after $searchAttempt candidate${searchAttempt == 1 ? '' : 's'}; seed ${settings['seed']}.',
+          'Completed. ${geometryOnly ? 'Layout verified; use Place encounters to allocate packs.' : 'Exact allocation verified.'} Accepted seed ${settings['seed']}.${searchAttempt > 1 ? ' Searched $searchAttempt candidates starting at $startSeed.' : ''}',
         );
       } else {
-        await _captureAnalysis(next, stamp);
         state = next.document['outcome'] == 'invalid_input'
             ? RunState.invalid
             : next.document['outcome'] == 'cancelled'
@@ -638,7 +731,7 @@ class ProjectController extends ChangeNotifier {
   Future<bool> removePack(String id) =>
       _editRecord({'type': 'remove_pack', 'id': id});
   Future<bool> duplicatePack(String id) async {
-    final matches = catalogue.where((p) => p['id'] == id);
+    final matches = effectiveCatalogue.where((p) => p['id'] == id);
     if (matches.isEmpty) return false;
     final pack =
         decodeExact(encodeExact(matches.first)) as Map<String, dynamic>;
@@ -710,7 +803,7 @@ class ProjectController extends ChangeNotifier {
         note('Cancelled. The last valid result was kept.');
       } else if (next.succeeded) {
         final analysisStamp = revision;
-        await _captureAnalysis(next, analysisStamp);
+        final publishAnalysis = await _captureAnalysis(next, analysisStamp);
         if (disposed) return;
         if (revision != analysisStamp || state == RunState.cancelling) {
           state = stale ? RunState.stale : RunState.idle;
@@ -723,9 +816,9 @@ class ProjectController extends ChangeNotifier {
         resultRevision = revision;
         resultGeometryRevision = geometryRevision;
         state = RunState.successful;
+        publishAnalysis?.call();
         note('Completed. Geometry reused; exact allocation verified.');
       } else {
-        await _captureAnalysis(next, stamp);
         state = RunState.failed;
         note('Optimization failed: ${_problem(next)}');
       }
@@ -797,7 +890,7 @@ class ProjectController extends ChangeNotifier {
       'Project updated. ${result == null
           ? 'Ready to generate.'
           : geometryCurrent
-          ? 'Geometry current; Optimize to refresh allocation.'
+          ? 'Geometry current; use Place encounters to refresh allocation.'
           : 'Geometry stale; Generate to refresh.'}',
     );
     return true;

@@ -80,12 +80,16 @@ bool valid_utf8(const std::string& value) noexcept {
 void canonicalize(Project& project) {
     auto by_id = [](const auto& a, const auto& b) { return a.id < b.id; };
     std::sort(project.rooms.begin(), project.rooms.end(), by_id);
-    std::sort(project.packs.begin(), project.packs.end(), by_id);
     for (auto& room : project.rooms) std::sort(room.tags.begin(), room.tags.end());
-    for (auto& pack : project.packs) {
-        std::sort(pack.required_tags.begin(), pack.required_tags.end());
-        std::sort(pack.allowed_roles.begin(), pack.allowed_roles.end());
-    }
+    auto order_packs = [&](auto& packs) {
+        std::sort(packs.begin(), packs.end(), by_id);
+        for (auto& pack : packs) {
+            std::sort(pack.required_tags.begin(), pack.required_tags.end());
+            std::sort(pack.allowed_roles.begin(), pack.allowed_roles.end());
+        }
+    };
+    order_packs(project.packs);
+    if (project.template_catalogue) order_packs(project.template_catalogue->packs);
 }
 Result<std::uint32_t> DeterministicRandom::bounded(std::uint32_t exclusive_upper) {
     if (exclusive_upper == 0) {

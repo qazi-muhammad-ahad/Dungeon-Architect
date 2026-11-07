@@ -14,13 +14,15 @@ struct InputError { Status status; };
                          const std::string& message, Outcome outcome = Outcome::invalid_input) {
     throw InputError{failure(outcome, code, path, message, "Correct the file using the version 1 schema and retry.")};
 }
-void object(const Json& value, const std::string& path, std::initializer_list<const char*> keys) {
+void object(const Json& value, const std::string& path, std::initializer_list<const char*> keys,
+            std::initializer_list<const char*> optional_keys = {}) {
     if (!value.is_object()) reject("json_type", path, "Expected an object.");
     std::set<std::string> expected;
     for (const auto* key : keys) {
         expected.insert(key);
         if (!value.contains(key)) reject("missing_field", path + "/" + key, "Required field is missing.");
     }
+    expected.insert(optional_keys.begin(), optional_keys.end());
     for (auto it = value.begin(); it != value.end(); ++it) {
         if (!expected.count(it.key())) reject("unknown_field", path, "Unknown field: " + it.key());
     }
@@ -157,7 +159,7 @@ Result<Project> parse(std::string_view document) {
         object(root, "", {"schema_version", "engine_version", "source"});
         if (string(root.at("engine_version"), "/engine_version", 64).empty()) reject("engine_version", "/engine_version", "Writer engine version cannot be empty.");
         const auto& source = root.at("source");
-        object(source, "/source", {"name", "settings", "allowed_mask", "rooms", "packs"});
+        object(source, "/source", {"name", "settings", "allowed_mask", "rooms", "packs"}, {"template_catalogue"});
         Project result;
         result.name = string(source.at("name"), "/source/name");
         result.settings = settings(source.at("settings"));
@@ -180,6 +182,17 @@ Result<Project> parse(std::string_view document) {
         array(packs, "/source/packs", limits::max_records);
         for (std::size_t i = 0; i < rooms.size(); ++i) result.rooms.push_back(room(rooms[i], "/source/rooms/" + std::to_string(i)));
         for (std::size_t i = 0; i < packs.size(); ++i) result.packs.push_back(pack(packs[i], "/source/packs/" + std::to_string(i)));
+        if (source.contains("template_catalogue")) {
+            const std::string path = "/source/template_catalogue";
+            const auto& pin = source.at("template_catalogue");
+            object(pin, path, {"version", "packs"});
+            result.template_catalogue.emplace();
+            result.template_catalogue->version = string(pin.at("version"), path + "/version", limits::max_id_bytes);
+            const auto& templates = pin.at("packs");
+            array(templates, path + "/packs", limits::max_records);
+            for (std::size_t i = 0; i < templates.size(); ++i)
+                result.template_catalogue->packs.push_back(pack(templates[i], path + "/packs/" + std::to_string(i)));
+        }
         auto status = validate_project(result);
         if (!status.ok()) return {std::move(status), std::nullopt};
         canonicalize(result);
@@ -199,7 +212,7 @@ Result<std::string> serialize(const Project& project) {
         Project ordered = project;
         canonicalize(ordered);
         const auto& s = ordered.settings;
-        Json mask = Json::array(), rooms = Json::array(), packs = Json::array();
+        Json mask = Json::array(), rooms = Json::array();
         for (std::int32_t y = 0; y < s.rows; ++y) {
             std::string row;
             row.reserve(static_cast<std::size_t>(s.columns));
@@ -212,20 +225,28 @@ Result<std::string> serialize(const Project& project) {
                 {"lock_position", r.lock_position}, {"lock_size", r.lock_size},
                 {"capacity_override", r.capacity_override ? Json(*r.capacity_override) : Json(nullptr)}});
         }
-        for (const auto& p : ordered.packs) {
-            Json roles = Json::array();
-            for (auto r : p.allowed_roles) roles.push_back(role_name(r));
-            packs.push_back({{"id", p.id}, {"name", p.name}, {"active", p.active}, {"slots", p.slots},
-                {"threat", p.threat}, {"score", p.score}, {"min_room_width", p.min_room_width},
-                {"min_room_height", p.min_room_height}, {"allowed_roles", roles}, {"required_tags", p.required_tags}});
-        }
+        auto encode_packs = [](const std::vector<Pack>& records) {
+            Json packs = Json::array();
+            for (const auto& p : records) {
+                Json roles = Json::array();
+                for (auto r : p.allowed_roles) roles.push_back(role_name(r));
+                packs.push_back({{"id", p.id}, {"name", p.name}, {"active", p.active}, {"slots", p.slots},
+                    {"threat", p.threat}, {"score", p.score}, {"min_room_width", p.min_room_width},
+                    {"min_room_height", p.min_room_height}, {"allowed_roles", roles}, {"required_tags", p.required_tags}});
+            }
+            return packs;
+        };
         Json root = {{"schema_version", schema_version}, {"engine_version", build_info().version},
-            {"source", {{"name", ordered.name}, {"allowed_mask", mask}, {"rooms", rooms}, {"packs", packs},
+            {"source", {{"name", ordered.name}, {"allowed_mask", mask}, {"rooms", rooms}, {"packs", encode_packs(ordered.packs)},
                 {"settings", {{"columns", s.columns}, {"rows", s.rows}, {"room_count", s.room_count},
                     {"room_width", {s.min_room_width, s.max_room_width}}, {"room_height", {s.min_room_height, s.max_room_height}},
                     {"margin", s.margin}, {"corridor_width", s.corridor_width}, {"seed", s.seed},
                     {"max_generation_attempts", s.max_generation_attempts}, {"max_work_units", s.max_work_units},
                     {"max_time_ms", s.max_time_ms}, {"threat_budget", s.threat_budget}}}}}};
+        if (ordered.template_catalogue) {
+            const auto& pin = *ordered.template_catalogue;
+            root["source"]["template_catalogue"] = {{"version", pin.version}, {"packs", encode_packs(pin.packs)}};
+        }
         auto encoded = root.dump(2) + "\n";
         if (encoded.size() > limits::max_file_bytes)
             return {failure(Outcome::unsupported_size, "file_limit", "", "Serialized document exceeds 16 MiB.", "Reduce catalogue text or record counts."), std::nullopt};

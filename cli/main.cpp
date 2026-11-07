@@ -263,13 +263,14 @@ int run(const std::vector<std::string>& args) {
     } else {
         const auto& s = project.settings;
         const auto allowed = std::count(project.allowed_mask.begin(), project.allowed_mask.end(), std::uint8_t{1});
-        const auto active = std::count_if(project.packs.begin(), project.packs.end(), [](const da::Pack& p) { return p.active; });
+        const auto& packs = project.effective_packs();
+        const auto active = std::count_if(packs.begin(), packs.end(), [](const da::Pack& p) { return p.active; });
         std::cout << project.name << '\n' << "Canvas: " << s.columns << " x " << s.rows
             << "; allowed tiles: " << allowed << '\n'
             << "Rooms: " << s.room_count << " requested; " << project.rooms.size() << " source rooms\n"
             << "Room sizes: " << s.min_room_width << '-' << s.max_room_width << " wide, "
             << s.min_room_height << '-' << s.max_room_height << " high\n"
-            << "Packs: " << project.packs.size() << " catalogue; " << active << " active (exact-solve cap 14)\n"
+            << "Packs: " << packs.size() << " catalogue; " << active << " active (exact-solve cap 14)\n"
             << "Threat budget: " << s.threat_budget << "; seed: " << s.seed << '\n'
             << "Source document only; no generated dungeon or allocation.\n";
     }

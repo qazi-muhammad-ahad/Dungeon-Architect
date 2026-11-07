@@ -68,7 +68,10 @@ public:
         for (const auto& c : geometry.corridors) final_work += static_cast<std::int64_t>(c.path.size())*width*width*5;
         if (!tick(final_work)) return std::move(result);
         result.status = validate_routed_geometry(source,layout,geometry);
-        if (result.status.ok() && tick(0)) result.geometry = std::move(geometry);
+        if (result.status.ok() && tick(0)) {
+            event("geometry_completed",{},{},geometry.exit_marker);
+            result.geometry = std::move(geometry);
+        }
         return std::move(result);
     }
 private:
@@ -94,10 +97,20 @@ private:
         if (work > source.settings.max_work_units-result.metrics.work_units) { result.status = error(Outcome::search_exhausted,"work_limit","Routing exceeded its work-unit limit."); return false; }
         result.metrics.work_units += work; return true;
     }
-    void event(const char* kind,const CorridorId& corridor, const RoomId& room, Tile t) {
+    bool event(RoutingEvent value) {
         TraceClock trace_clock(result.metrics.trace_us);
-        const auto limit = std::string_view(kind) == "anchor_visited" ? options.max_events/2 : options.max_events;
-        if (result.events.size() < limit) result.events.push_back({kind,corridor,room,t}); else ++result.metrics.dropped_events;
+        value.width = width;
+        const bool detail = value.kind == "search_batch" || value.kind == "reconstruct_batch" || value.kind == "carve_batch";
+        const auto limit = detail ? options.max_events/2 : options.max_events;
+        if (result.events.size() < limit) {
+            result.events.push_back(std::move(value));
+            return true;
+        }
+        ++result.metrics.dropped_events;
+        return false;
+    }
+    void event(const char* kind,const CorridorId& corridor,const RoomId& room,Tile t) {
+        event(RoutingEvent{kind,corridor,room,t});
     }
     std::vector<Door> doors(const Room& room) {
         std::vector<Door> out;
@@ -128,7 +141,36 @@ private:
     bool route(const RoomConnection& edge,std::size_t edge_index) {
         const auto& from = *rooms.at(edge.from); const auto& to = *rooms.at(edge.to);
         const auto corridor_id = "corridor-"+std::to_string(edge_index+1);
-        event("routing_started",corridor_id,from.id,{from.bounds.x,from.bounds.y});
+        RoutingEvent started{"routing_started",corridor_id,from.id,{from.bounds.x,from.bounds.y}};
+        started.other_room_id = to.id;
+        event(std::move(started));
+        // Small batches preserve actual queue/parent order without an event per cell.
+        std::vector<RoutingStep> batch;
+        std::uint64_t operations = 0, recorded = 0, expanded = 0, discovered = 0;
+        const char* phase = "search_batch";
+        std::uint64_t phase_limit = 1024;
+        auto flush = [&] {
+            if (batch.empty()) return;
+            RoutingEvent value{phase,corridor_id,{},batch.back().tile};
+            value.steps = std::move(batch);
+            const auto size = value.steps.size();
+            if (event(std::move(value))) recorded += size;
+            batch.clear();
+        };
+        auto step = [&](const char* kind,Tile cell,Tile parent = Tile{-1,-1}) {
+            ++operations;
+            if (operations > phase_limit) return;
+            batch.push_back({kind,cell,parent});
+            if (batch.size() == (std::string_view(phase) == "search_batch" ? 32U : 4U)) flush();
+        };
+        auto finish = [&](const char* kind,Tile cell) {
+            flush();
+            RoutingEvent summary{kind,corridor_id,{},cell};
+            summary.visited = expanded;
+            summary.discovered = discovered;
+            summary.omitted_steps = operations-recorded;
+            event(std::move(summary));
+        };
         auto starts = doors(from), goals = doors(to);
         if (!result.status.ok()) return false;
         if (starts.empty() || goals.empty()) {
@@ -169,38 +211,49 @@ private:
         for (std::size_t j = 0; j < starts.size(); ++j) {
             const auto a = starts[j].outside_anchor;
             const auto i = index(a);
-            if (legal(a) && parent[i] == -2) { parent[i] = -1; origin[i] = static_cast<int>(j); queue.push_back(i); }
+            if (legal(a) && parent[i] == -2) { parent[i] = -1; origin[i] = static_cast<int>(j); queue.push_back(i); ++discovered; step("discovered",a); }
         }
         std::optional<std::size_t> reached;
         for (std::size_t head = 0; head < queue.size(); ++head) {
             if (!tick()) return false;
             const auto i = queue[head]; const auto a = tile(i);
-            ++result.metrics.anchors_visited; event("anchor_visited",corridor_id,{},a);
+            ++result.metrics.anchors_visited; ++expanded; step("expanded",a);
             if (goal_gate[i] >= 0) { reached = i; break; }
             for (auto delta : directions) {
                 if (!tick()) return false;
                 Tile next{a.x+delta.x,a.y+delta.y};
                 if (!inside(next)) continue;
                 const auto ni = index(next);
-                if (parent[ni] == -2 && legal(next)) { parent[ni] = static_cast<int>(i); origin[ni] = origin[i]; queue.push_back(ni); }
+                if (parent[ni] == -2 && legal(next)) { parent[ni] = static_cast<int>(i); origin[ni] = origin[i]; queue.push_back(ni); ++discovered; step("discovered",next,a); }
             }
         }
         if (!result.status.ok()) return false;
         if (!reached) { result.status = error(Outcome::search_exhausted,"corridor_disconnected","No legal corridor footprint path connects these rooms at the requested width.",{from.id,to.id},{{from.bounds.x,from.bounds.y},{to.bounds.x,to.bounds.y}}); return false; }
+        finish("search_finished",tile(*reached));
+        phase = "reconstruct_batch"; phase_limit = 512; operations = 0; recorded = 0;
         auto first = starts[static_cast<std::size_t>(origin[*reached])], last = goals[static_cast<std::size_t>(goal_gate[*reached])];
         first.id = corridor_id+"-from"; last.id = corridor_id+"-to";
         CorridorLink corridor; corridor.id = corridor_id; corridor.from_room = from.id; corridor.to_room = to.id;
         corridor.from_door = first.id; corridor.to_door = last.id;
         for (int i = static_cast<int>(*reached); i >= 0; i = parent[static_cast<std::size_t>(i)]) {
             if (!tick()) return false;
-            corridor.path.push_back(tile(static_cast<std::size_t>(i)));
+            const auto cell = tile(static_cast<std::size_t>(i));
+            const auto predecessor = parent[static_cast<std::size_t>(i)];
+            step("path",cell,predecessor < 0 ? Tile{-1,-1} : tile(static_cast<std::size_t>(predecessor)));
+            corridor.path.push_back(cell);
         }
+        finish("reconstruction_finished",corridor.path.back());
         std::reverse(corridor.path.begin(),corridor.path.end());
+        phase = "carve_batch"; operations = 0; recorded = 0;
         for (const auto& d : {first,last}) { for (auto t : d.tiles) door_cells[index(t)] = 1; event("door_selected",corridor_id,d.room_id,d.tiles.front()); geometry.doors.push_back(d); }
-        for (auto anchor : corridor.path) for (int y = anchor.y; y < anchor.y+width; ++y) for (int x = anchor.x; x < anchor.x+width; ++x) {
-            if (!tick()) return false;
-            geometry.layers.floor[index({x,y})] = 1; geometry.movement_reserved[index({x,y})] = 1;
+        for (auto anchor : corridor.path) {
+            for (int y = anchor.y; y < anchor.y+width; ++y) for (int x = anchor.x; x < anchor.x+width; ++x) {
+                if (!tick()) return false;
+                geometry.layers.floor[index({x,y})] = 1; geometry.movement_reserved[index({x,y})] = 1;
+            }
+            step("carve",anchor);
         }
+        finish("carving_finished",corridor.path.back());
         geometry.corridors.push_back(std::move(corridor)); ++result.metrics.corridors_routed;
         event("corridor_routed",corridor_id,{},tile(*reached)); return true;
     }

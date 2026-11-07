@@ -61,7 +61,8 @@ Status validate_project(const Project& project) {
     if (s.max_work_units <= 0) add("work_limit", "/source/settings/max_work_units", "Work-unit limit must be positive.");
     if (s.max_time_ms <= 0) add("work_limit", "/source/settings/max_time_ms", "Time limit must be positive.");
     if (s.threat_budget < 0) add("negative_budget", "/source/settings/threat_budget", "Threat budget cannot be negative.");
-    if (project.rooms.size() > limits::max_records || project.packs.size() > limits::max_records) {
+    if (project.rooms.size() > limits::max_records || project.packs.size() > limits::max_records ||
+        (project.template_catalogue && project.template_catalogue->packs.size() > limits::max_records)) {
         add("record_limit", "/source", "A document may contain at most 4096 source rooms and 4096 catalogue packs.", Outcome::unsupported_size);
         return result;
     }
@@ -94,37 +95,50 @@ Status validate_project(const Project& project) {
         check_tags(room.tags, path + "/tags", room.id);
     }
     ids.clear();
-    std::int64_t slots = 0, threat = 0, score = 0;
-    for (std::size_t i = 0; i < project.packs.size(); ++i) {
-        const auto& pack = project.packs[i];
-        const auto path = "/source/packs/" + std::to_string(i);
-        if (!identifier(pack.id)) add("invalid_id", path + "/id", "Pack ID must be a 1-64 byte ASCII identifier.", Outcome::invalid_input, pack.id);
-        if (!ids.insert(pack.id).second) add("duplicate_id", path + "/id", "Pack inventory copies must have distinct IDs.", Outcome::invalid_input, pack.id);
-        if (!text(pack.name)) add("invalid_text", path + "/name", "Pack name must be nonempty valid UTF-8 text of at most 256 bytes.", Outcome::invalid_input, pack.id);
-        if (pack.slots <= 0) add("pack_slots", path + "/slots", "Spawn demand must be positive.", Outcome::invalid_input, pack.id);
-        if (pack.threat < 0) add("negative_threat", path + "/threat", "Threat cannot be negative.", Outcome::invalid_input, pack.id);
-        if (pack.score < 0) add("negative_score", path + "/score", "Score cannot be negative.", Outcome::invalid_input, pack.id);
-        if (pack.min_room_width <= 0 || pack.min_room_height <= 0)
-            add("pack_dimensions", path, "Minimum compatible room dimensions must be positive.", Outcome::invalid_input, pack.id);
-        if (pack.active && pack.slots > 0 && pack.threat >= 0 && pack.score >= 0) {
-            if (!checked_add(slots, pack.slots, slots) || !checked_add(threat, pack.threat, threat) || !checked_add(score, pack.score, score))
-                add("total_overflow", path, "Active inventory totals exceed signed 64-bit storage.", Outcome::invalid_input, pack.id);
+    auto check_packs = [&](const std::vector<Pack>& packs, const std::string& prefix) {
+        std::int64_t slots = 0, threat = 0, score = 0;
+        for (std::size_t i = 0; i < packs.size(); ++i) {
+            const auto& pack = packs[i];
+            const auto path = prefix + "/" + std::to_string(i);
+            if (!identifier(pack.id)) add("invalid_id", path + "/id", "Pack ID must be a 1-64 byte ASCII identifier.", Outcome::invalid_input, pack.id);
+            if (!ids.insert(pack.id).second) add("duplicate_id", path + "/id", "Pack inventory copies must have distinct IDs.", Outcome::invalid_input, pack.id);
+            if (!text(pack.name)) add("invalid_text", path + "/name", "Pack name must be nonempty valid UTF-8 text of at most 256 bytes.", Outcome::invalid_input, pack.id);
+            if (pack.slots <= 0) add("pack_slots", path + "/slots", "Spawn demand must be positive.", Outcome::invalid_input, pack.id);
+            if (pack.threat < 0) add("negative_threat", path + "/threat", "Threat cannot be negative.", Outcome::invalid_input, pack.id);
+            if (pack.score < 0) add("negative_score", path + "/score", "Score cannot be negative.", Outcome::invalid_input, pack.id);
+            if (pack.min_room_width <= 0 || pack.min_room_height <= 0)
+                add("pack_dimensions", path, "Minimum compatible room dimensions must be positive.", Outcome::invalid_input, pack.id);
+            if (pack.active && pack.slots > 0 && pack.threat >= 0 && pack.score >= 0) {
+                if (!checked_add(slots, pack.slots, slots) || !checked_add(threat, pack.threat, threat) || !checked_add(score, pack.score, score))
+                    add("total_overflow", path, "Active inventory totals exceed signed 64-bit storage.", Outcome::invalid_input, pack.id);
+            }
+            std::set<RoomRole> roles;
+            for (auto role : pack.allowed_roles) {
+                if (!role_valid(role) || !roles.insert(role).second)
+                    add("invalid_role", path + "/allowed_roles", "Allowed roles must be known and unique.", Outcome::invalid_input, pack.id);
+            }
+            check_tags(pack.required_tags, path + "/required_tags", pack.id);
         }
-        std::set<RoomRole> roles;
-        for (auto role : pack.allowed_roles) {
-            if (!role_valid(role) || !roles.insert(role).second)
-                add("invalid_role", path + "/allowed_roles", "Allowed roles must be known and unique.", Outcome::invalid_input, pack.id);
-        }
-        check_tags(pack.required_tags, path + "/required_tags", pack.id);
+    };
+    check_packs(project.packs, "/source/packs");
+    if (project.template_catalogue) {
+        const auto& pin = *project.template_catalogue;
+        if (!identifier(pin.version))
+            add("invalid_id", "/source/template_catalogue/version", "Template version must be a 1-64 byte ASCII identifier.");
+        if (pin.packs.empty())
+            add("empty_template_catalogue", "/source/template_catalogue/packs", "A pinned template catalogue must contain at least one pack.");
+        check_packs(pin.packs, "/source/template_catalogue/packs");
     }
     return result.ok() ? detail::validate_room_geometry(project) : result;
 }
 Status validate_allocation_workload(const Project& project) {
     auto result = validate_project(project);
     if (!result.ok()) return result;
-    const auto count = std::count_if(project.packs.begin(), project.packs.end(), [](const Pack& p) { return p.active; });
+    const auto& packs = project.effective_packs();
+    const auto count = std::count_if(packs.begin(), packs.end(), [](const Pack& p) { return p.active; });
     if (count > static_cast<std::ptrdiff_t>(limits::max_active_packs))
-        return failure(Outcome::unsupported_size, "active_pack_limit", "/source/packs",
+        return failure(Outcome::unsupported_size, "active_pack_limit",
+                       project.packs.empty() && project.template_catalogue ? "/source/template_catalogue/packs" : "/source/packs",
                        "The exact optimizer supports at most 14 active packs.", "Deactivate packs; the full catalogue can remain saved.");
     return {};
 }

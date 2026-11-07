@@ -79,6 +79,93 @@ class ScenarioEngine extends Engine {
 }
 
 void main() {
+  test('presentation moves only along accepted native segments between tile commits', () async {
+    final first = Completer<Map<String, dynamic>>();
+    var calls = 0, stateNotifications = 0;
+    final c = PlayController(({
+      required snapshotJob,
+      required x,
+      required y,
+      required dx,
+      required dy,
+    }) async {
+      calls++;
+      return calls == 1 ? first.future : {'x': x, 'y': y};
+    });
+    addTearDown(c.dispose);
+    c.start(dungeon(), 11, 0);
+    c.addListener(() => stateNotifications++);
+    c.key('right', true);
+    final pending = c.advance(const Duration(milliseconds: 125));
+    await c.advance(const Duration(milliseconds: 16));
+    expect(c.x, 1);
+    expect(c.motion.value, (
+      1.0,
+      1.0,
+    ), reason: 'Pending native approval cannot move the image');
+    first.complete({'x': 2, 'y': 1});
+    await pending;
+    expect(c.x, 2);
+    expect(c.motion.value, (1.0, 1.0));
+    c.key('right', false);
+    final notifications = stateNotifications;
+    await c.advance(const Duration(microseconds: 31250));
+    expect(c.motion.value.$1, closeTo(1.25, .0001));
+    await c.advance(const Duration(microseconds: 31250));
+    expect(c.motion.value.$1, closeTo(1.5, .0001));
+    expect(c.motion.value.$2, 1);
+    expect(c.x, 2);
+    expect(
+      stateNotifications,
+      notifications,
+      reason: 'Fractional paint frames do not rebuild the workspace',
+    );
+    c.pause();
+    expect(c.motion.value, (2.0, 1.0));
+    c.resume();
+    c.key('right', true);
+    await c.advance(const Duration(milliseconds: 125));
+    await c.advance(const Duration(milliseconds: 32));
+    expect(c.motion.value, (
+      2.0,
+      1.0,
+    ), reason: 'Native wall response cannot create movement');
+    c.restart();
+    expect(c.motion.value, (1.0, 1.0));
+  });
+
+  test('queued approved turns finish each cardinal segment without cutting corners', () async {
+    final c = PlayController(
+      ({
+        required snapshotJob,
+        required x,
+        required y,
+        required dx,
+        required dy,
+      }) async => {'x': x + dx, 'y': y + dy},
+    );
+    addTearDown(c.dispose);
+    c.start(dungeon(), 11, 0);
+    c.key('right', true);
+    await c.advance(const Duration(milliseconds: 125));
+    c.key('right', false);
+    c.key('down', true);
+    await c.advance(const Duration(milliseconds: 125));
+    c.key('down', false);
+    expect(c.x, 2);
+    expect(c.y, 2);
+    expect(c.motion.value.$1, closeTo(1.8, .0001));
+    expect(c.motion.value.$2, 1);
+    await c.advance(const Duration(milliseconds: 25));
+    expect(c.motion.value.$1, closeTo(2, .0001));
+    expect(c.motion.value.$2, closeTo(1, .0001));
+    await c.advance(const Duration(microseconds: 62500));
+    expect(c.motion.value.$1, 2);
+    expect(c.motion.value.$2, closeTo(1.5, .0001));
+    c.pause();
+    expect(c.motion.value, (2.0, 2.0));
+  });
+
   testWidgets(
     'scenario numeric fields retain typing state, submit exact values on Enter and restore baseline',
     (tester) async {
@@ -307,6 +394,7 @@ void main() {
     await frame;
     expect(c.x, 1);
     expect(c.y, 1);
+    expect(c.motion.value, (1.0, 1.0));
     expect(c.held, isEmpty);
     expect(c.moving, false);
   });
@@ -360,13 +448,28 @@ void main() {
       );
       addTearDown(c.dispose);
       final original = dungeon(exitX: 5);
+      original['allocation']['actors'].add({
+        'pack_id': 'archer',
+        'room_id': 'exit',
+        'tile': {'x': 2, 'y': 1},
+      });
       c.start(original, 11, 3);
       original['geometry']['exit_marker']['x'] = 19;
       original['allocation']['actors'].clear();
       c.key('right', true);
       await c.advance(const Duration(milliseconds: 125));
-      expect(c.nearbyActor()?['pack_id'], 'guard');
-      await c.advance(const Duration(milliseconds: 375));
+      expect(
+        c.nearbyActor()?['pack_id'],
+        'archer',
+        reason: 'Marker under the player wins over the first nearby marker',
+      );
+      await c.advance(const Duration(milliseconds: 125));
+      expect(
+        c.nearbyActor()?['pack_id'],
+        'guard',
+        reason: 'Equal distance preserves recorded order',
+      );
+      await c.advance(const Duration(milliseconds: 250));
       expect(c.x, 5, reason: 'Actor at x=4 must not block movement');
       expect(c.completed, true);
       expect(c.paused, true);

@@ -10,21 +10,18 @@ its existing license in `apps/flutter_ui/assets/fonts/`.
 
 ## Palette and layers
 
-Play uses charcoal void (`#20252B`), sage stone floor (`#69796F` / `#819084`),
-slate walls (`#414E58` / `#8A979D`) and brass door thresholds (`#DAB675`).
-Entrance arches are mint, exit stairs lavender, encounters amber diamonds and
-the player a white figure with a dark silhouette. Shapes distinguish roles as
-well as colors. The same motifs appear on Design and Analyze maps; the light
-editor has a lighter floor for contrast with its text and outlines.
+The dungeon palette uses charcoal void, cold stone floors, slate brick walls and
+wood-and-iron arched doors. Floor seams, moss and occasional wall torches are
+deterministic decoration. Original 16-pixel sprites depict a hooded adventurer,
+archer, armored guard, horned ogre, fire spirit and skeleton. Entrance arches
+and exit stairs use distinct silhouettes. Custom packs use a skeleton unless
+their descriptive name identifies one of the supported archetypes.
 
-Mask, floor/walls and optional masonry details form the base. Door thresholds
-sit above floor. Reservations and detached/narrow diagnostics remain visible
-above tile detail. Room outlines and screen-sized room labels remain legible;
-labels have a paper-colored background. At detail zoom detached diagnostics use
-a slash and insufficient-clearance diagnostics an X, in addition to their colors;
-selection gets a contrasting double outline. Blocked scenario tiles and native
-trace highlights remain above decorative detail. Analyze's overlay switches
-control optional IDs, doors, assignments, connectivity and partition bounds.
+Sprites are selected using the accepted snapshot's pack metadata. Their drawing
+does not change spawn positions, movement, encounter counts or inspection.
+Overlapping player/encounter positions retain a small encounter sprite beside
+the player. At Fit, sprites retain a minimum readable footprint; zoom reveals
+the full pixel detail. Room outlines and screen-sized labels stay legible.
 
 Tile fills and pixel motifs disable antialiasing and snap shared edges to device
 pixels. Camera position, selection hit testing and native geometry are unchanged.

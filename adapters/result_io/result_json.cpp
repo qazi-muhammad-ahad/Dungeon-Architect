@@ -22,7 +22,7 @@ nlohmann::json allocation_json(const da::Project& p,const da::AllocationResult& 
         output["seed"] = p.settings.seed; output["threat_budget"] = p.settings.threat_budget;
         output["optimal"] = result.ok(); output["allocation"] = nullptr;
         std::vector<da::PackId> pack_order;
-        for (const auto& pack : p.packs) if (pack.active) pack_order.push_back(pack.id);
+        for (const auto& pack : p.effective_packs()) if (pack.active) pack_order.push_back(pack.id);
         std::sort(pack_order.begin(),pack_order.end()); output["pack_bit_order"] = pack_order;
         const auto& m = result.metrics;
         output["metrics"] = {{"allocated_table_bytes",m.allocated_table_bytes},{"storage_domain","logical_capacity_of_subset_feasibility_predecessor_and_rolling_state_vectors_not_process_memory"},{"estimated_bytes",m.estimated_bytes},{"estimated_work",m.estimated_work},
@@ -33,7 +33,12 @@ nlohmann::json allocation_json(const da::Project& p,const da::AllocationResult& 
         output["metrics"]["timing_domain"] = "steady_clock_wall_including_validation_and_cooperative_yields";
         output["metrics"]["trace_timing"] = "nested_emission_overhead_included_in_stage_timings";
         output["events"] = nlohmann::json::array();
-        for (const auto& e : result.events) output["events"].push_back({{"kind",e.kind},{"room_id",e.room_id},{"mask",e.mask},{"subset",e.subset},{"states",e.states}});
+        for (const auto& e : result.events) output["events"].push_back({
+            {"kind",e.kind},{"room_id",e.room_id},{"mask",e.mask},{"subset",e.subset},{"states",e.states},
+            {"decision_data",e.decision_data},{"sampled",e.sampled},{"predecessor",e.predecessor},
+            {"room_compatible",e.room_compatible},{"slots_fit",e.slots_fit},{"predecessor_feasible",e.predecessor_feasible},
+            {"subset_slots",e.subset_slots},{"subset_threat",e.subset_threat},{"inventory_threat",e.inventory_threat},
+            {"room_capacity",e.room_capacity},{"budget",e.budget}});
         if (result.ok()) {
             const auto& a = *result.allocation;
             nlohmann::json data = {{"id",a.id},{"geometry_id",a.geometry_id},{"geometry_revision",a.geometry_revision},
@@ -59,7 +64,15 @@ nlohmann::json geometry_json(const da::Project& p,const da::RoutingResult& route
         output["metrics"]["timing_domain"] = "steady_clock_wall_including_validation_and_cooperative_yields";
         output["metrics"]["trace_timing"] = "nested_emission_overhead_included_in_stage_timings";
         output["events"] = nlohmann::json::array();
-        for (const auto& e : routed.events) output["events"].push_back({{"kind",e.kind},{"corridor_id",e.corridor_id},{"room_id",e.room_id},{"tile",point(e.tile)}});
+        for (const auto& e : routed.events) {
+            nlohmann::json steps = nlohmann::json::array();
+            for (const auto& step : e.steps)
+                steps.push_back({{"kind",step.kind},{"tile",point(step.tile)},{"parent",point(step.parent)}});
+            output["events"].push_back({{"kind",e.kind},{"corridor_id",e.corridor_id},
+                {"room_id",e.room_id},{"other_room_id",e.other_room_id},{"tile",point(e.tile)},
+                {"width",e.width},{"visited",e.visited},{"discovered",e.discovered},
+                {"omitted_steps",e.omitted_steps},{"steps",std::move(steps)}});
+        }
         output["geometry"] = nullptr;
         if (routed.ok()) {
             const auto& g = *routed.geometry;

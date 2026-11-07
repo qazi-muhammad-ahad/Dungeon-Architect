@@ -14,15 +14,35 @@ dynamic _freeze(dynamic value) => value is Map
     ? List<dynamic>.unmodifiable(value.map(_freeze))
     : value;
 
+enum TraceSelection { all, generation, routing, allocation }
+
 /// Replay only reads an immutable bounded copy. It never calls the solver.
 class TracePlayback extends ChangeNotifier {
+  TracePlayback({Duration Function()? elapsed})
+    : _elapsed = elapsed ?? _startClock();
+
   static const maxEvents = 4096;
-  List<Map<String, dynamic>> events = const [];
+  static const _maxEventsPerUpdate = 256;
+  final Duration Function() _elapsed;
+  List<Map<String, dynamic>> _events = const [];
+  List<int> _selectedIndices = const [];
+  List<Map<String, dynamic>> _selectedEvents = const [];
+  List<Map<String, dynamic>> get events => _events;
+  List<int> get selectedIndices => _selectedIndices;
+  List<Map<String, dynamic>> get selectedEvents => _selectedEvents;
+  TraceSelection selection = TraceSelection.all;
   int cursor = 0, revision = -1, runId = 0, dropped = 0;
   bool playing = false, truncated = false;
-  double speed = 4;
+  double speed = 1;
   Timer? _timer;
-  Map<String, dynamic>? get current => cursor == 0 ? null : events[cursor - 1];
+  Duration _previous = Duration.zero;
+  double _fraction = 0;
+
+  int? get currentOriginalIndex =>
+      cursor == 0 ? null : _selectedIndices[cursor - 1];
+  Map<String, dynamic>? get current =>
+      cursor == 0 ? null : _selectedEvents[cursor - 1];
+
   void load(
     List<Map<String, dynamic>> value, {
     required int revision,
@@ -30,61 +50,131 @@ class TracePlayback extends ChangeNotifier {
     bool truncated = false,
     int dropped = 0,
   }) {
-    pause();
+    _stop();
     this.revision = revision;
     this.runId = runId;
     this.truncated = truncated || value.length > maxEvents;
     this.dropped = dropped + math.max(0, value.length - maxEvents);
-    events = List.unmodifiable(
+    _events = List.unmodifiable(
       value.take(maxEvents).map((e) => _freeze(e) as Map<String, dynamic>),
     );
+    _filter();
+    notifyListeners();
+  }
+
+  void _filter() {
+    _selectedIndices = List.unmodifiable([
+      for (var i = 0; i < _events.length; i++)
+        if (selection == TraceSelection.all ||
+            _events[i]['stage'] == selection.name)
+          i,
+    ]);
+    _selectedEvents = List.unmodifiable(
+      _selectedIndices.map((i) => _events[i]),
+    );
     cursor = 0;
+  }
+
+  void setSelection(TraceSelection value) {
+    if (selection == value) return;
+    _stop();
+    selection = value;
+    _filter();
     notifyListeners();
   }
 
   void seek(int position) {
-    cursor = position.clamp(0, events.length);
-    if (cursor == events.length) pause();
+    _stop();
+    cursor = position.clamp(0, _selectedEvents.length);
     notifyListeners();
   }
 
   void step() => seek(cursor + 1);
-  void restart() {
-    pause();
-    seek(0);
+  void back() => seek(cursor - 1);
+  void restart() => seek(0);
+
+  void _schedule() {
+    // At high speeds coalesce intermediate visuals into a bounded update.
+    // At teaching speeds wake near the next event boundary.
+    final delay = speed > 60
+        ? 16000
+        : math
+              .min(16000.0, (1 - _fraction) / speed * 1000000)
+              .ceil()
+              .clamp(1000, 16000);
+    _timer = Timer(Duration(microseconds: delay), _tick);
+  }
+
+  void _tick() {
+    final now = _elapsed();
+    // A suspended/throttled tab does not build up a catch-up backlog.
+    final micros = (now - _previous).inMicroseconds.clamp(0, 100000);
+    _previous = now;
+    final credit = math.min(
+      _maxEventsPerUpdate.toDouble(),
+      _fraction + (micros / 1000000) * speed,
+    );
+    final advance = (credit + 1e-9).floor();
+    _fraction = math.max(0, credit - advance);
+    if (advance > 0) {
+      cursor = math.min(cursor + advance, _selectedEvents.length);
+      if (cursor == _selectedEvents.length) _stop();
+      notifyListeners();
+    }
+    if (playing) _schedule();
   }
 
   void play() {
-    if (events.isEmpty || playing) return;
-    if (cursor == events.length) cursor = 0;
+    if (_selectedEvents.isEmpty || playing) return;
+    if (cursor == _selectedEvents.length) cursor = 0;
     playing = true;
-    _timer = Timer.periodic(
-      Duration(milliseconds: (1000 / speed).round().clamp(16, 2000)),
-      (_) => step(),
-    );
+    _previous = _elapsed();
+    _schedule();
     notifyListeners();
   }
 
-  void pause() {
+  void _stop() {
     _timer?.cancel();
     _timer = null;
     playing = false;
+    _fraction = 0;
+  }
+
+  void pause() {
+    if (!playing) return;
+    _stop();
     notifyListeners();
   }
 
   void setSpeed(double value) {
-    final resume = playing;
-    pause();
-    speed = value.clamp(.5, 60);
-    if (resume) play();
+    if (!value.isFinite || value <= 0) {
+      throw ArgumentError.value(
+        value,
+        'value',
+        'Enter a finite positive speed.',
+      );
+    }
+    if (speed == value) return;
+    speed = value;
+    if (playing) {
+      _timer?.cancel();
+      _fraction = 0;
+      _previous = _elapsed();
+      _schedule();
+    }
     notifyListeners();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _stop();
     super.dispose();
   }
+}
+
+Duration Function() _startClock() {
+  final watch = Stopwatch()..start();
+  return () => watch.elapsed;
 }
 
 enum BenchmarkAxis { area, rooms, packs }
@@ -165,6 +255,7 @@ String benchmarkProject(String canonical, BenchmarkConfig config, int value) {
   });
   source['allowed_mask'] = List.filled(height, '1' * width);
   source['rooms'] = [];
+  source.remove('template_catalogue');
   source['packs'] = List.generate(
     config.axis == BenchmarkAxis.packs ? value : 12,
     (i) => {

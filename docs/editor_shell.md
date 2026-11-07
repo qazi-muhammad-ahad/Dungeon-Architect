@@ -10,13 +10,14 @@ dark gray theme, selectable with the sun/moon toolbar button.
 ## Workflow
 
 Start with **File → Open** or a bundled example, adjust Room count
-and Threat budget, then **Generate & solve** on the Design/Analyze/Play ribbon.
+and Threat budget, then **Generate with encounters** on the Design/Analyze/Play ribbon.
 New, Open, Save and Save As live in File; its dot indicates unsaved changes.
 The preview and totals come from the
 C++ result. Selecting a room in the explorer or preview exposes its properties.
 View switching and resizing retain the project, selection and result.
 
-Generate automatically tries consecutive uint32 seeds, beginning with the displayed
+**Randomize seed** chooses a different uint32 seed while keeping the other inputs.
+Start generation when ready. Generate tries consecutive seeds, beginning with the displayed
 seed (wrapping at its maximum), until the first complete, verified native result.
 Only search-exhausted outcomes are retried; invalid input and resource/unsupported
 errors stop immediately. The search is cancellable and bounded by the project's
@@ -35,11 +36,9 @@ position and size; subsequent generation arranges other rooms around it. Use
 **Release room** to allow regeneration. Fixing requires a current verified result.
 The source edit is validated in C++ and marks the previous result stale.
 
-Analyze shows allocation totals, bounded native trace playback, BSP/DP inspection,
-optional map overlays and isolated benchmarks. Its temporary failure scenarios can
-block floor tiles or change allocation constraints without changing the saved
-baseline. Apply changes to rerun native reachability and exact allocation, or
-restore the baseline. Stale scenario output suppresses assignments until reapplied.
+Analyze opens the full-width map and a compact native trace ribbon. Drag the
+canvas to pan, scroll to zoom around the pointer, and use Fit to reset the camera.
+The ribbon filters recorded events by stage and controls playback and seeking.
 
 Play starts an immutable session from the current verified baseline or scenario.
 WASD/arrows move using native collision, E inspects nearby static encounters, and
@@ -111,10 +110,9 @@ navigation, selection retention, compact widths and high-DPI sizing. The separat
 50-check `tests/web/browser_test.cjs` verifies the engine/Dart boundary against
 the native CLI; native Debug/Release builds run all 18 CTest suites.
 
-## Analyze playback and benchmarks
+## Analyze playback
 
-Analyze now includes bounded real-event playback, linked BSP/map diagnostics, a
-tiny-state DP inspector, native metrics and isolated reproducible benchmark
-batches. See [Analyze and benchmarks](analyze_benchmarks.md) for controls, limits,
+The trace highlights recorded BSP, routing and allocation decisions on the map.
+See [Analyze and benchmarks](analyze_benchmarks.md) for controls, limits,
 measurement domains and recorded target-workload evidence. Play remains a map
 preview; exploration controls are a later phase.

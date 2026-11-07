@@ -82,6 +82,73 @@ void main() {
   tearDown(() => c.dispose());
 
   test(
+    'legacy inventory is pinned and first/last custom edits switch catalogues',
+    () async {
+      final legacy = decodeExact(source) as Map<String, dynamic>;
+      legacy['source'].remove('template_catalogue');
+      expect(await c.load(encodeExact(legacy)), true);
+      expect(c.catalogue, isEmpty);
+      expect(c.usingTemplates, true);
+      expect(c.activePackCount, greaterThan(0));
+      final bundled = c.effectiveCatalogue;
+      final bundledId = bundled.first['id'] as String;
+      legacy['source']['packs'] = [pack(bundledId, active: false)];
+      expect(await c.load(encodeExact(legacy)), true);
+      expect(c.usingTemplates, false);
+      expect(c.catalogue.single['id'], bundledId);
+      expect(c.effectiveCatalogue, c.catalogue);
+      expect(c.activePackCount, 0);
+      final pinned = c.source['template_catalogue'];
+      expect(
+        (pinned['packs'] as List).map((p) => p['id']),
+        isNot(contains(bundledId)),
+      );
+
+      final removed = decodeExact(c.canonical) as Map<String, dynamic>;
+      removed['source']['packs'] = [];
+      await c.run();
+      final oldResult = c.result;
+      validator.edits.add(accepted(removed));
+      expect(await c.removePack(bundledId), true);
+      expect(c.usingTemplates, true);
+      expect(c.stale, true);
+      expect(c.geometryCurrent, true);
+      expect(c.result, same(oldResult));
+      expect(c.effectiveCatalogue, pinned['packs']);
+
+      final custom = decodeExact(c.canonical) as Map<String, dynamic>;
+      custom['source']['packs'] = [pack('custom-inactive', active: false)];
+      validator.edits.add(accepted(custom));
+      expect(await c.savePack(pack('custom-inactive', active: false)), true);
+      expect(c.usingTemplates, false);
+      expect(c.effectiveCatalogue.single['id'], 'custom-inactive');
+      expect(c.activePackCount, 0);
+    },
+  );
+
+  test(
+    'opening historical pinned templates preserves their exact values',
+    () async {
+      final historical = decodeExact(source) as Map<String, dynamic>;
+      final oldPack = {...pack('starter-retired'), 'slots': 3, 'score': 711};
+      historical['source']['template_catalogue'] = {
+        'version': 'historic-v2',
+        'packs': [oldPack],
+      };
+      final file = encodeExact(historical);
+      expect(await c.load(file), true);
+      expect(c.usingTemplates, true);
+      expect(c.effectiveCatalogue.single, oldPack);
+      expect(c.canonical, file);
+      await c.run();
+      expect(decodeExact(engine.requests.last.raw), historical);
+      expect(await c.load(c.canonical), true);
+      expect(c.effectiveCatalogue.single, oldPack);
+      expect(c.source['template_catalogue']['version'], 'historic-v2');
+    },
+  );
+
+  test(
     'rejected pack and room commits preserve canonical source and output',
     () async {
       await c.run();

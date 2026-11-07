@@ -64,6 +64,13 @@ the session so geometry and assignments cannot come from different revisions.
 There is no combat, enemy AI, physics engine, economy, networking or account
 system. All scenario, allocation and collision authority remains native C++.
 
+Play renders between already approved native cardinal steps. The camera and
+player follow the same fractional pose, while inspection and collision retain
+the authoritative tile coordinates. Rendering repaints independently of the
+controls, and idle ticker callbacks avoid full widget rebuilds. Delayed approved
+steps remain ordered, including turns. Pause and restart settle to the accepted
+tile position.
+
 ## ABI and lifetime
 
 ABI 1 adds operation `DA_SCENARIO = 11`. Submit UTF-8 JSON:

@@ -21,6 +21,23 @@ final source = jsonEncode({
     'allowed_mask': List.filled(16, '1' * 24),
     'rooms': [],
     'packs': [],
+    'template_catalogue': {
+      'version': 'test-v1',
+      'packs': [
+        {
+          'id': 'test-template',
+          'name': 'Test template',
+          'active': false,
+          'slots': 1,
+          'threat': 1,
+          'score': 1,
+          'min_room_width': 1,
+          'min_room_height': 1,
+          'allowed_roles': [],
+          'required_tags': [],
+        },
+      ],
+    },
   },
 });
 EngineResult success(String raw) => EngineResult(
@@ -105,6 +122,68 @@ Future<void> settle(ProjectController c) async {
 }
 
 void main() {
+  test('randomizing a uint32 seed changes only source seed and pauses stale replay', () async {
+    final engine = FakeEngine();
+    final c = ProjectController(engine: engine, validator: FakeEngine());
+    addTearDown(c.dispose);
+    await c.initialize();
+    for (final seed in [0, 4294967295]) {
+      final input = decodeExact(source);
+      input['source']['settings']['seed'] = seed;
+      expect(await c.load(encodeExact(input)), true);
+      await c.run();
+      final accepted = c.result;
+      final runs = engine.triedSeeds.length;
+      c.switchView(EditorView.analyze);
+      c.playback.load(
+        [
+          {'stage': 'generation', 'sequence': 0},
+        ],
+        revision: c.revision,
+        runId: 9,
+      );
+      c.playback.play();
+      expect(c.playback.playing, true);
+      expect(c.canRandomizeSeed, true);
+      c.randomizeSeed();
+      await settle(c);
+      final changed = decodeExact(c.canonical);
+      final newSeed = changed['source']['settings']['seed'] as int;
+      expect(newSeed, inInclusiveRange(0, 4294967295));
+      expect(newSeed, isNot(seed));
+      changed['source']['settings']['seed'] = seed;
+      expect(changed, input);
+      expect(engine.triedSeeds.length, runs);
+      expect(c.result, same(accepted));
+      expect(c.stale, true);
+      expect(c.playback.playing, false);
+      expect(c.playback.events.single['sequence'], 0);
+      expect(c.scenario.revision, c.revision);
+      expect(c.play.active, false);
+      c.randomizeSeed();
+      await settle(c);
+      expect(c.settings['seed'], isNot(newSeed));
+    }
+    final before = c.canonical;
+    c.setCanvasDraft(true);
+    expect(c.canRandomizeSeed, false);
+    c.randomizeSeed();
+    expect(c.canonical, before);
+    c.setCanvasDraft(false);
+    c.editSetting(
+      'seed',
+      'invalid',
+      min: BigInt.zero,
+      max: BigInt.from(4294967295),
+    );
+    final error = c.fieldErrors['seed'];
+    expect(error, isNotNull);
+    expect(c.canRandomizeSeed, false);
+    c.randomizeSeed();
+    expect(c.fieldErrors['seed'], error);
+    expect(c.canonical, before);
+  });
+
   test(
     'automatic search deadline cancels without replacing a valid result',
     () async {

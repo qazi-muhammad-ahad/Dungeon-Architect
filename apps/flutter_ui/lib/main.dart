@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'editor/project_controller.dart';
-import 'editor/analysis_panel.dart';
-import 'editor/scenario_panel.dart';
 import 'editor/play_workspace.dart';
 import 'editor/files.dart';
 import 'editor/preview.dart';
@@ -260,29 +258,38 @@ class _EditorShellState extends State<EditorShell> {
                 children: [
                   _menubar(narrow),
                   _viewTabs(narrow),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        if (!narrow)
-                          SizedBox(
-                            width: compact ? 180 : 218,
-                            child: _explorer(),
+                  if (c.view == EditorView.analyze)
+                    Expanded(
+                      child: DungeonPreview(
+                        key: ValueKey(('trace', c.documentEpoch)),
+                        controller: c,
+                        grid: grid,
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: Row(
+                        children: [
+                          if (!narrow)
+                            SizedBox(
+                              width: compact ? 180 : 218,
+                              child: _explorer(),
+                            ),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Expanded(child: _workspace()),
+                                if (console && box.maxHeight > 560)
+                                  _console(narrow),
+                              ],
+                            ),
                           ),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              Expanded(child: _workspace()),
-                              if (console && box.maxHeight > 560)
-                                _console(narrow),
-                            ],
-                          ),
-                        ),
-                        if (!compact && inspector)
-                          SizedBox(width: 268, child: _inspector()),
-                      ],
+                          if (!compact && inspector)
+                            SizedBox(width: 268, child: _inspector()),
+                        ],
+                      ),
                     ),
-                  ),
-                  _status(narrow),
+                  if (c.view != EditorView.analyze) _status(narrow),
                 ],
               );
             },
@@ -409,7 +416,7 @@ class _EditorShellState extends State<EditorShell> {
       )
     else
       Tooltip(
-        message: 'Automatically find a valid layout, connect rooms and solve allocation (F5)',
+        message: 'Generate with encounters (F5)',
         child: FilledButton.icon(
           onPressed:
               c.canRun &&
@@ -418,42 +425,45 @@ class _EditorShellState extends State<EditorShell> {
               ? () => c.run()
               : null,
           icon: Icon(Icons.play_arrow_rounded, size: 17),
-          label: Text(narrow ? 'Run' : 'Generate & solve'),
+          label: Text(narrow ? 'Generate' : 'Generate with encounters'),
         ),
       ),
-    if (!c.busy && MediaQuery.sizeOf(context).width >= 1100) ...[
+    if (!c.busy &&
+        c.view != EditorView.analyze &&
+        MediaQuery.sizeOf(context).width >= 1400) ...[
       TextButton(
         onPressed: c.canRun && !fileBusy
             ? () => c.run(geometryOnly: true)
             : null,
-        child: Text('Generate only'),
+        child: Text('Generate layout only'),
       ),
       TextButton(
         onPressed: c.canOptimize && !fileBusy ? c.optimize : null,
-        child: Text('Optimize'),
+        child: Text('Place encounters'),
       ),
     ],
-    IconButton(
-      tooltip: 'Project inspector',
-      onPressed: () {
-        if (MediaQuery.sizeOf(context).width < 980) {
-          showModalBottomSheet<void>(
-            context: context,
-            isScrollControlled: true,
-            builder: (_) => SizedBox(
-              height: MediaQuery.sizeOf(context).height * .8,
-              child: AnimatedBuilder(
-                animation: c,
-                builder: (_, _) => _inspector(),
+    if (c.view != EditorView.analyze)
+      IconButton(
+        tooltip: 'Project inspector',
+        onPressed: () {
+          if (MediaQuery.sizeOf(context).width < 980) {
+            showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              builder: (_) => SizedBox(
+                height: MediaQuery.sizeOf(context).height * .8,
+                child: AnimatedBuilder(
+                  animation: c,
+                  builder: (_, _) => _inspector(),
+                ),
               ),
-            ),
-          );
-        } else {
-          setState(() => inspector = !inspector);
-        }
-      },
-      icon: Icon(Icons.tune_rounded),
-    ),
+            );
+          } else {
+            setState(() => inspector = !inspector);
+          }
+        },
+        icon: Icon(Icons.tune_rounded),
+      ),
   ];
   Widget _explorer() => Container(
     decoration: BoxDecoration(
@@ -573,13 +583,13 @@ class _EditorShellState extends State<EditorShell> {
         Divider(),
         _treeLabel(
           Icons.hexagon_outlined,
-          'Encounter inventory',
-          '${(c.source['packs'] as List? ?? []).length}',
+          c.usingTemplates ? 'Template packs' : 'Custom packs',
+          '${c.effectiveCatalogue.length}',
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(18, 10, 18, 18),
           child: Text(
-            '${(c.source['packs'] as List? ?? []).where((p) => p['active'] == true).length} active packs · exact solver',
+            '${c.activePackCount} active packs · exact solver',
             style: TextStyle(fontSize: 10, color: muted),
           ),
         ),
@@ -696,16 +706,14 @@ class _EditorShellState extends State<EditorShell> {
           child: Row(
             children: [
               Text(
-                c.view == EditorView.design
-                    ? 'DESIGN CANVAS'
-                    : c.view == EditorView.analyze
-                    ? 'ALLOCATION OVERVIEW'
-                    : 'EXPLORATION',
+                c.view == EditorView.design ? 'DESIGN CANVAS' : 'EXPLORATION',
                 style: TextStyle(fontSize: 10, letterSpacing: 1, color: muted),
               ),
               Spacer(),
               if (c.stale) _badge('STALE · previous result', Color(0xFF946322)),
-              if (!c.stale && c.result != null)
+              if (!c.stale && c.showingPreviousResult)
+                _badge('PREVIOUS RESULT', const Color(0xFF946322)),
+              if (!c.showingPreviousResult && c.result != null)
                 _badge(
                   c.scenario.stale
                       ? 'SCENARIO STALE'
@@ -726,20 +734,12 @@ class _EditorShellState extends State<EditorShell> {
             ],
           ),
         ),
-        if (c.view == EditorView.analyze)
-          Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  AnalyzePanel(controller: c),
-                  ScenarioPanel(
-                    key: ValueKey(
-                      'scenario-${c.documentEpoch}-${c.scenario.baselineJob}',
-                    ),
-                    controller: c,
-                  ),
-                ],
-              ),
+        if (c.view != EditorView.play)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Text(
+              '${c.showingPreviousResult ? 'Previous result · ' : ''}${c.encounterSummary} · Dungeon sprites mark encounters',
+              style: TextStyle(fontSize: 11, color: muted),
             ),
           ),
         Expanded(
@@ -866,7 +866,27 @@ class _EditorShellState extends State<EditorShell> {
                 (c.settings['columns'] as int? ?? 150) *
                     (c.settings['rows'] as int? ?? 150),
               ),
-              _number('Seed', 'seed', 'seed', 0, 4294967295),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _number('Seed', 'seed', 'seed', 0, 4294967295),
+                  ),
+                  IconButton(
+                    tooltip: 'Randomize seed',
+                    onPressed: c.canRandomizeSeed && !fileBusy
+                        ? c.randomizeSeed
+                        : null,
+                    icon: const Icon(Icons.casino_outlined, size: 19),
+                  ),
+                ],
+              ),
+              Text(
+                c.randomizeSeedHint,
+                style: TextStyle(fontSize: 11, color: muted),
+              ),
+              if (c.result != null)
+                Text('Accepted seed ${c.acceptedSeed ?? '—'}'),
               _number('Min room width', 'min_room_width', 'tiles', 1, 512),
               _number('Max room width', 'max_room_width', 'tiles', 1, 512),
               _number('Min room height', 'min_room_height', 'tiles', 1, 512),
@@ -874,7 +894,7 @@ class _EditorShellState extends State<EditorShell> {
               _number('Corridor width', 'corridor_width', 'tiles', 1, 512),
               _number('Room margin', 'margin', 'tiles', 0, 512),
               Text(
-                'Starting seed. Generate searches automatically and saves the first successful seed.',
+                'If the starting seed fails, generation tries successive candidates and saves the first successful seed.',
                 style: TextStyle(fontSize: 11, color: muted, height: 1.5),
               ),
               SizedBox(height: 14),
@@ -895,7 +915,7 @@ class _EditorShellState extends State<EditorShell> {
                 c.result == null
                     ? 'Generate a dungeon to begin.'
                     : c.geometryCurrent
-                    ? 'Geometry current · Optimize refreshes allocation.'
+                    ? 'Geometry current · Place encounters refreshes allocation.'
                     : 'Geometry stale · Generate to recompute rooms and corridors.',
                 style: TextStyle(fontSize: 11, color: violet),
               ),
@@ -906,11 +926,11 @@ class _EditorShellState extends State<EditorShell> {
                     onPressed: c.canRun
                         ? () => c.run(geometryOnly: true)
                         : null,
-                    child: Text('Generate only'),
+                    child: Text('Generate layout only'),
                   ),
                   TextButton(
                     onPressed: c.canOptimize ? c.optimize : null,
-                    child: Text('Optimize'),
+                    child: Text('Place encounters'),
                   ),
                 ],
               ),
@@ -933,12 +953,12 @@ class _EditorShellState extends State<EditorShell> {
                 '1. Generate a layout.\n2. Use Select room, then click a room or its Explorer entry.\n3. Choose Fix room here in Selection. Its position and size are preserved on later runs.',
                 style: TextStyle(fontSize: 11, color: muted, height: 1.6),
               ),
-              if (c.allocation != null) ...[
+              if (c.result != null) ...[
                 SizedBox(height: 22),
                 Divider(),
                 SizedBox(height: 18),
                 Text(
-                  c.stale ? 'PREVIOUS RESULT' : 'RESULT',
+                  c.showingPreviousResult ? 'PREVIOUS RESULT' : 'RESULT',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -948,6 +968,9 @@ class _EditorShellState extends State<EditorShell> {
                 ),
                 SizedBox(height: 12),
                 _property('Rooms', '${c.rooms.length}'),
+                Text(c.encounterSummary),
+              ],
+              if (c.allocation != null) ...[
                 _property(
                   'Score',
                   '${c.payload!['allocation']['total_score']}',
@@ -965,7 +988,12 @@ class _EditorShellState extends State<EditorShell> {
                   Padding(
                     padding: EdgeInsets.only(top: 8),
                     child: Text(
-                      'Unused ${unused['pack_id']}: ${unused['reason']}',
+                      'Unused ${unused['pack_id']} · ${switch (unused['reason']) {
+                        'oversized' => 'Insufficient spawn capacity in compatible rooms.',
+                        'no_compatible_eligible_room' => 'No eligible room meets its compatibility requirements.',
+                        'unselected_by_optimum' => 'The exact optimum did not select this pack.',
+                        _ => unused['reason'],
+                      }}',
                       style: TextStyle(fontSize: 11, color: muted),
                     ),
                   ),
@@ -983,7 +1011,7 @@ class _EditorShellState extends State<EditorShell> {
     int min,
     int? max,
   ) => NumericField(
-    key: ValueKey('${c.documentEpoch}:$key'),
+    key: ValueKey((c.documentEpoch, key, key == 'seed' ? c.seedFieldEpoch : 0)),
     label: label,
     value: '${c.settingValue(key) ?? ''}',
     unit: unit,

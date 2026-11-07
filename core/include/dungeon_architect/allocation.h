@@ -8,6 +8,7 @@ struct AllocationRoom {
     bool reachable = false;
     std::int32_t capacity = 0;
     std::vector<SpawnPosition> spawns;
+    int progression_depth = 0;
 };
 // Value input for isolated optimization/scenario fixtures. The dungeon adapter
 // below additionally validates the full routed geometry before constructing it.
@@ -17,6 +18,7 @@ struct AllocationInput {
     std::uint64_t geometry_revision = 0, allocation_revision = 0;
     std::vector<Pack> packs;
     std::vector<AllocationRoom> rooms;
+    RoomId finale_room;
 };
 struct AllocationOptions {
     std::size_t max_events = 256;
@@ -36,6 +38,10 @@ struct AllocationEvent {
     RoomId room_id;
     std::uint32_t mask = 0, subset = 0;
     std::uint64_t states = 0;
+    bool decision_data = false, sampled = false;
+    bool room_compatible = false, slots_fit = false, predecessor_feasible = false;
+    std::uint32_t predecessor = 0;
+    std::int64_t subset_slots = 0, subset_threat = 0, inventory_threat = 0, room_capacity = 0, budget = 0;
 };
 struct AllocationResult {
     Status status;

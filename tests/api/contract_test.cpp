@@ -30,10 +30,106 @@ template<class Fn> std::string read(Fn fn) {
     CHECK(fn(reinterpret_cast<uint8_t*>(result.data()),size,&size) == DA_OK); return result;
 }
 std::string report(da_job job) { return read([&](uint8_t* p,uint32_t c,uint32_t* n){return da_job_read(job,DA_REPORT,p,c,n);}); }
+
+void template_contract(const std::string& source) {
+    da_context context = 0;
+    CHECK(da_context_create(1,1,&context) == DA_OK);
+    const auto run = [&](const Json& input, uint32_t operation = DA_RUN) {
+        const auto job = create(context,input.dump(),operation);
+        CHECK(da_job_execute(job) == DA_OK);
+        const auto result = Json::parse(report(job));
+        CHECK(da_job_release(job) == DA_OK);
+        return result;
+    };
+    auto legacy = Json::parse(source);
+    auto archer = legacy["source"]["packs"].at(0);
+    archer["id"] = "historical-template";
+    legacy["source"]["packs"] = Json::array();
+    const auto empty = run(legacy);
+    CHECK(empty["outcome"] == "success");
+    CHECK(empty["result"]["allocation"]["actors"].empty());
+    CHECK(!empty["result"]["source_project"]["source"].contains("template_catalogue"));
+
+    auto pinned = legacy;
+    pinned["source"]["template_catalogue"] = {
+        {"version","historical-v7"}, {"packs",Json::array({archer})},
+    };
+    const auto normalized = run(pinned,DA_NORMALIZE);
+    CHECK(normalized["outcome"] == "success");
+    const auto canonical = Json::parse(normalized["project_json"].get<std::string>());
+    CHECK(canonical["source"]["packs"].empty());
+    CHECK(canonical["source"]["template_catalogue"] == pinned["source"]["template_catalogue"]);
+    const auto allocated = run(canonical);
+    CHECK(allocated["outcome"] == "success" && allocated["optimal"] == true);
+    const auto& result = allocated["result"];
+    CHECK(result["allocation"]["assignments"].size() == 1);
+    CHECK(result["allocation"]["actors"].size() == 1);
+    CHECK(result["allocation"]["actors"].at(0)["pack_id"] == archer["id"]);
+    CHECK(result["source_project"] == canonical);
+    CHECK(run(result["source_project"])["result"] == result);
+
+    auto custom = archer;
+    custom["id"] = "custom";
+    custom["active"] = false;
+    auto overridden = canonical;
+    overridden["source"]["packs"] = Json::array({custom});
+    const auto inactive = run(overridden,DA_REALLOCATE);
+    CHECK(inactive["outcome"] == "success" && inactive["geometry_reused"] == true);
+    CHECK(inactive["result"]["geometry"] == result["geometry"]);
+    CHECK(inactive["result"]["allocation"]["actors"].empty());
+    CHECK(inactive["result"]["allocation"]["unused"].empty());
+    overridden["source"]["packs"][0]["active"] = true;
+    overridden["source"]["packs"][0]["required_tags"] = {"unavailable"};
+    const auto incompatible = run(overridden,DA_REALLOCATE);
+    CHECK(incompatible["outcome"] == "success");
+    CHECK(incompatible["result"]["allocation"]["actors"].empty());
+    CHECK(incompatible["result"]["allocation"]["unused"].at(0) ==
+        Json({{"pack_id","custom"},{"reason","no_compatible_eligible_room"}}));
+    overridden["source"]["packs"][0]["required_tags"] = archer["required_tags"];
+    overridden["source"]["packs"][0]["slots"] = 4;
+    const auto oversized = run(overridden,DA_REALLOCATE);
+    CHECK(oversized["outcome"] == "success");
+    CHECK(oversized["result"]["allocation"]["actors"].empty());
+    CHECK(oversized["result"]["allocation"]["unused"].at(0)["reason"] == "oversized");
+    overridden["source"]["packs"][0]["slots"] = 1;
+    overridden["source"]["settings"]["threat_budget"] = 0;
+    const auto constrained = run(overridden,DA_REALLOCATE);
+    CHECK(constrained["outcome"] == "success");
+    CHECK(constrained["result"]["allocation"]["actors"].empty());
+    CHECK(constrained["result"]["allocation"]["unused"].at(0)["reason"] == "unselected_by_optimum");
+
+    overridden["source"]["packs"][0]["id"] = archer["id"];
+    CHECK(run(overridden,DA_NORMALIZE)["outcome"] == "invalid_input");
+    const auto restored = run(canonical,DA_REALLOCATE);
+    CHECK(restored["outcome"] == "success" && restored["geometry_reused"] == true);
+    CHECK(restored["result"] == result);
+    const auto layout_only = run(canonical,DA_GENERATE_DUNGEON);
+    CHECK(layout_only["outcome"] == "success");
+    CHECK(layout_only["result"]["allocation"].is_null());
+
+    const auto parsed = da::project_io::parse(canonical.dump());
+    CHECK(parsed.ok());
+    da::ProjectSession session;
+    CHECK(session.replace_loaded(*parsed.value).ok());
+    const auto original = session.revisions();
+    auto updated = *parsed.value;
+    updated.template_catalogue->version = "historical-v8";
+    CHECK(session.update(updated).ok());
+    const auto renamed = session.revisions();
+    CHECK(renamed.source == original.source + 1);
+    CHECK(renamed.geometry == original.geometry && renamed.allocation == original.allocation);
+    ++updated.template_catalogue->packs[0].score;
+    CHECK(session.update(updated).ok());
+    CHECK(session.revisions().geometry == renamed.geometry);
+    CHECK(session.revisions().allocation == renamed.allocation + 1);
+    CHECK(da_context_release(context) == DA_OK);
+}
+
 int main(int argc, char** argv) {
     try {
         CHECK(argc == 3);
         const auto source = read_file(argv[1]); const auto standard = read_file(argv[2]);
+        template_contract(source);
         da_context c = 55; da_job j = 0; uint32_t n = 0, state = 0, stage = 0, outcome = 0;
         CHECK(da_context_create(1,1,nullptr) == DA_INVALID_ARGUMENT);
         CHECK(da_context_create(2,1,&c) == DA_VERSION_MISMATCH); CHECK(c == 0);
@@ -66,7 +162,7 @@ int main(int argc, char** argv) {
         CHECK(da_job_read(j,42,nullptr,0,&n) == DA_INVALID_ARGUMENT);
         auto metrics = Json::parse(read([&](uint8_t* p,uint32_t cap,uint32_t* len){return da_job_read(j,DA_METRICS,p,cap,len);}));
         CHECK(metrics.contains("allocation")); CHECK(metrics.contains("routing"));
-        uint32_t cursor = 0; std::size_t count = 0;
+        uint32_t cursor = 0; std::size_t count = 0, routing_steps = 0, allocation_decisions = 0;
         do {
             auto batch = Json::parse(read([&](uint8_t* p,uint32_t cap,uint32_t* len){return da_job_trace(j,cursor,7,p,cap,len);}));
             CHECK(batch["events"].size() <= 7);
@@ -81,12 +177,33 @@ int main(int argc, char** argv) {
                 CHECK(event["stage"] == "generation" || event["stage"] == "routing" || event["stage"] == "allocation");
                 CHECK(event["affected_ids"].is_array());
                 CHECK(event["event"].contains("kind"));
+                if (event["stage"] == "routing") {
+                    const auto& detail = event["event"];
+                    CHECK(detail["width"].is_number_integer());
+                    CHECK(detail["steps"].is_array() && detail["steps"].size() <= 32);
+                    for (const auto& step : detail["steps"]) {
+                        CHECK(step["kind"].is_string());
+                        CHECK(step["tile"]["x"].is_number_integer() && step["tile"]["y"].is_number_integer());
+                        CHECK(step["parent"]["x"].is_number_integer() && step["parent"]["y"].is_number_integer());
+                        ++routing_steps;
+                    }
+                }
+                if (event["stage"] == "allocation" && event["event"].value("decision_data",false)) {
+                    const auto& detail = event["event"];
+                    CHECK(detail["sampled"].is_boolean() && detail["predecessor"].is_number_unsigned());
+                    CHECK(detail["room_compatible"].is_boolean() && detail["slots_fit"].is_boolean() && detail["predecessor_feasible"].is_boolean());
+                    for (const auto* key : {"subset_slots","subset_threat","inventory_threat","room_capacity","budget"})
+                        CHECK(detail[key].is_number_integer());
+                    ++allocation_decisions;
+                }
                 for (const auto& id : event["affected_ids"]) CHECK(id.is_string() && !id.get<std::string>().empty());
             }
             cursor = batch["next_cursor"];
             if (cursor == batch["total"]) break;
         } while (true);
         CHECK(count > 0 && count <= 48);
+        CHECK(routing_steps > 0);
+        CHECK(allocation_decisions > 0);
         CHECK(metrics.contains("generation") && metrics.contains("routing") && !metrics.contains("walkable_geometry"));
         for (const auto* name : {"generation","routing","allocation"}) {
             CHECK(metrics[name]["timing_domain"] == "steady_clock_wall_including_validation_and_cooperative_yields");

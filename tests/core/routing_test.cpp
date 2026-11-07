@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <map>
 #include <set>
 #include <thread>
 
@@ -102,6 +103,97 @@ void obstacles_and_crossings() {
     for (auto a : result.geometry->corridors[1].path) for (int y = a.y; y < a.y+2; ++y) for (int x = a.x; x < a.x+2; ++x) crossed = crossed || first.count({x,y}) != 0;
     CHECK(crossed);
 }
+void recorded_search_and_carving() {
+    const auto p = source();
+    const auto layout = *da::generate_rooms(p).layout;
+    da::RoutingOptions options; options.max_events = 4096;
+    const auto result = da::route_corridors(p,layout,options);
+    CHECK(result.ok() && result.metrics.dropped_events == 0);
+    using Cell = std::pair<int,int>;
+    const auto key = [](da::Tile tile) { return Cell{tile.x,tile.y}; };
+    std::map<Cell,Cell> parents;
+    std::vector<Cell> queue, expanded;
+    std::vector<da::Tile> reconstructed, carved;
+    std::size_t reconstruction_batches = 0, carving_batches = 0;
+    bool search_finished = false, reconstruction_finished = false, carving_finished = false;
+    for (const auto& event : result.events) {
+        CHECK(event.width == p.settings.corridor_width && event.steps.size() <= 32);
+        if (event.kind == "reconstruct_batch") ++reconstruction_batches;
+        if (event.kind == "carve_batch") ++carving_batches;
+        if (event.kind == "routing_started") {
+            CHECK(event.room_id == "a" && event.other_room_id == "b");
+        }
+        for (const auto& step : event.steps) {
+            if (event.kind == "search_batch") {
+                CHECK(!search_finished);
+                if (step.kind == "discovered") {
+                    if (!(step.parent == da::Tile{-1,-1})) {
+                        CHECK(parents.count(key(step.parent)) == 1);
+                        CHECK(std::abs(step.tile.x-step.parent.x)+std::abs(step.tile.y-step.parent.y) == 1);
+                    }
+                    CHECK(parents.emplace(key(step.tile),key(step.parent)).second);
+                    queue.push_back(key(step.tile));
+                } else {
+                    CHECK(step.kind == "expanded");
+                    CHECK(expanded.size() < queue.size() && key(step.tile) == queue[expanded.size()]);
+                    expanded.push_back(key(step.tile));
+                }
+            } else if (event.kind == "reconstruct_batch") {
+                CHECK(search_finished && !reconstruction_finished && step.kind == "path");
+                CHECK(parents.at(key(step.tile)) == key(step.parent));
+                reconstructed.push_back(step.tile);
+            } else if (event.kind == "carve_batch") {
+                CHECK(reconstruction_finished && !carving_finished && step.kind == "carve");
+                carved.push_back(step.tile);
+            } else CHECK(false);
+        }
+        if (event.kind == "search_finished") {
+            search_finished = true;
+            CHECK(event.omitted_steps == 0 && event.discovered == parents.size() && event.visited == expanded.size());
+            CHECK(event.visited == static_cast<std::uint64_t>(result.metrics.anchors_visited));
+        }
+        if (event.kind == "reconstruction_finished") {
+            reconstruction_finished = true;
+            CHECK(event.omitted_steps == 0);
+        }
+        if (event.kind == "carving_finished") {
+            carving_finished = true;
+            CHECK(event.omitted_steps == 0);
+        }
+        if (event.kind == "corridor_routed") CHECK(carving_finished);
+    }
+    CHECK(search_finished && reconstruction_finished && carving_finished);
+    CHECK(reconstruction_batches > 1 && carving_batches > 1);
+    const auto& path = result.geometry->corridors.at(0).path;
+    CHECK(carved == path);
+    std::reverse(reconstructed.begin(),reconstructed.end());
+    CHECK(reconstructed == path);
+    independent_floor(p,*result.geometry);
+
+    // Detail caps report their omitted operations without changing the result.
+    auto large = source();
+    large.settings.columns = large.settings.rows = 64;
+    large.allowed_mask.assign(4096,1);
+    large.rooms[1].bounds.x = 56;
+    const auto large_layout = *da::generate_rooms(large).layout;
+    const auto sampled = da::route_corridors(large,large_layout,options);
+    CHECK(sampled.ok());
+    std::size_t captured = 0;
+    bool missing = false;
+    for (const auto& event : sampled.events) {
+        if (event.kind == "search_batch") captured += event.steps.size();
+        if (event.kind == "search_finished") {
+            CHECK(event.visited+event.discovered == captured+event.omitted_steps);
+            missing = event.omitted_steps > 0;
+        }
+    }
+    CHECK(missing && captured <= 1024);
+    options.max_events = 0;
+    const auto quiet = da::route_corridors(large,large_layout,options);
+    CHECK(quiet.ok() && quiet.events.empty());
+    CHECK(quiet.geometry->layers.floor == sampled.geometry->layers.floor);
+    CHECK(quiet.geometry->corridors[0].path == sampled.geometry->corridors[0].path);
+}
 void capacities_and_transactions() {
     auto p = source(); const auto layout = *da::generate_rooms(p).layout;
     p.rooms[1].capacity_override = 2; auto result = da::route_corridors(p,layout); CHECK(result.ok() && result.geometry->rooms[1].capacity == 2);
@@ -138,6 +230,6 @@ void capacities_and_transactions() {
     CHECK(session.geometry() == previous && !session.geometry_current());
 }
 int main() {
-    try { straight_and_corruption(); obstacles_and_crossings(); capacities_and_transactions(); std::cout << checks << " routing checks passed.\n"; }
+    try { straight_and_corruption(); obstacles_and_crossings(); recorded_search_and_carving(); capacities_and_transactions(); std::cout << checks << " routing checks passed.\n"; }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

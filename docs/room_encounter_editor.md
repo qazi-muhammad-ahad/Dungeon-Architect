@@ -23,7 +23,7 @@ fixes them again. A locked room cannot be moved, resized or removed by combining
 the geometry change with an unlock. Room role changes require regeneration
 because entrance/exit selection and reserved movement space depend on them.
 
-The **Encounter catalogue** stores active and inactive entries together. Create,
+The **Custom packs** catalogue stores active and inactive entries together. Create,
 edit, duplicate or remove entries without JSON editing. Each inventory copy has
 a distinct generated ID. Slots count spawn positions; threat and designer score
 are nonnegative integer points. Minimum room dimensions are tile counts.
@@ -31,16 +31,29 @@ Allowed roles and required room tags control compatibility. Empty allowed roles
 means any non-entrance role; all required tags must match. Large integer fields
 retain exact int64 values through source edits and saving.
 
+An empty custom catalogue uses the **Template packs** shown in the inspector.
+The current starter version spreads Archer, Guard pair, Lava spirit and the
+exit-only Ogre Boss across the route when room constraints permit it. Their
+threats are 1, 2, 4 and 7. Older saved starter versions keep their pinned values.
+The editor saves their version and exact pack definitions in
+`source.template_catalogue`. On opening a legacy file, the editor pins its starter
+catalogue while preserving every saved record in `source.packs` as custom.
+**Copy to custom packs** creates a custom record with a fresh ID. Any custom
+record takes precedence over the entire template catalogue, even when all custom
+packs are inactive. Removing the last custom record restores the pinned
+templates and requires fresh allocation.
+
 The active count and 14-pack exact limit appear before solving. Inactive entries
 stay saved, and catalogues above the active limit can still be edited and saved.
-**Generate only** builds rooms and corridors independently of that limit.
-**Generate & solve** performs the full pipeline; **Optimize** reuses the current
+**Generate layout only** builds rooms and corridors independently of that limit.
+**Generate with encounters** performs the full pipeline. **Place encounters** reuses the current
 verified geometry after pack, threat-budget, room-tag or capacity changes.
 The inspector states whether geometry needs generation or only allocation needs
 optimization. Geometry inputs cannot be silently reused after they change.
 
 Successful allocation shows assigned packs and slots in the room inspector,
-actors on the map, total score/threat/slots, and native unused-pack explanations.
+amber actor dots on the map, total score/threat/slots, and native unused-pack explanations.
+In Play, move within two tiles of a dot and press **E** to inspect its pack.
 Old output stays visible with the stale label after edits or failed work. Save
 and reopen uses the same versioned source format, including room locks and all
 catalogue entries; derived output is recomputed after reopening.

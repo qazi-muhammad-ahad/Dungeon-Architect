@@ -7,7 +7,9 @@ optimal. Active copies have distinct IDs; at most 14 active packs are supported.
 ## Algorithm contract and pseudocode
 
 Before allocating DP tables, validate inputs and estimate memory and worst-case
-work. Sort active packs and eligible rooms by ID. Entrance, unreachable and
+work. Sort active packs by ID. Direct inputs without a finale order rooms by ID.
+Routed inputs order rooms by shortest corridor-link depth from the entrance, then
+by ID, with the exit last. Entrance, unreachable and
 zero-capacity rooms are ineligible. Compatibility requires role, all required
 tags and minimum dimensions; slot demand must fit actual capacity.
 
@@ -22,11 +24,11 @@ for rooms r in canonical order:
     for masks M in ascending numeric order:
         try S=0 first, then all nonempty submasks of M in ascending order
         if fits[r,S] and F[r-1,M xor S]:
-            F[r,M] = true; predecessor[r,M] = S; stop this state
+            F[r,M] = true; retain the preferred predecessor for this state
 choose a feasible final M within threat budget by:
     highest score, lowest threat, lowest slots, lexical selected-pack-ID list
 walk predecessors backwards to reconstruct each room's assigned subset
-visit rooms and packs in ID order; consume spawn cells in (y,x,ID) order
+visit rooms in DP order and packs in ID order; consume cells in (y,x,ID) order
 independently validate complete assignments, actors, totals and unused reasons
 publish only if source revision and geometry snapshot still match
 ```
@@ -35,8 +37,21 @@ Empty subsets make skipping any room legal. Only F(0,empty) is initially true.
 Induction: removing the last room's subset yields an exact feasible predecessor;
 conversely a feasible predecessor plus a disjoint fitting subset yields a valid
 assignment. Every assignment is represented. The final scan enforces the global
-budget and chooses the exact optimum. Placement ties follow the explicit DP
-traversal above, favoring already assigned earlier rooms when possible.
+budget and chooses the exact optimum. The selected inventory follows the same
+score, threat, slot and ID priorities regardless of its placement. For each
+inventory mask in a routed run, compare feasible placements in this order:
+
+1. Maximize the number of occupied rooms.
+2. Put the strongest eligible pack at the exit when the same spread permits it.
+3. Minimize occupied rooms where a pack is weaker than any earlier pack.
+4. Favor evenly spaced stops and stronger packs deeper in the route.
+
+Equal threats may occupy consecutive rooms. Role, tag, dimensions, reachability
+and capacity constraints can force sharing or departures from the desired order.
+The ordering penalty depends on the earlier inventory mask and the current
+subset, so it stays exact within the existing DP state space. Remaining
+placement ties retain the first predecessor in traversal order. Direct inputs
+without a finale keep their original first-feasible placement behavior.
 
 Worst-case DP time is O(R * 3^N), storage O(R * 2^N), with N <= 14. Threat is
 a subset total, not a table dimension. Resource estimates include subset totals,
@@ -46,7 +61,8 @@ budget is rejected before allocation, even if early exits might make a run cheap
 Cooperative work/time checks and cancellation return no allocation on interruption.
 Validation and input copying are bounded synchronous operations, as in routing.
 
-The work estimate is `(R+3)*2^N + R*3^N + R*N + N + 1 + sum(capacity)`.
+The work estimate is `(R+3)*2^N + R*3^N + R*N + N + 1 + sum(capacity)`,
+with another `N*N` operations for threat ranks in a routed run.
 Counters count subset-total computations, pack/room compatibility tests,
 room/subset feasibility entries, predecessor attempts, final subset scans and
 placed actors. They are operation units, not CPU instructions. Input/result
@@ -131,8 +147,12 @@ output, not an importable source project. Phase 07 now provides combined geometr
 through run/export; `route --json` already
 exports geometry separately with reproducible IDs.
 
-Default traces record preflight, room-level feasible-state counts, reconstruction
-subsets and the final optimum. Detailed state traces require N <= 6 and R <= 8.
+Default traces record preflight, representative actual feasible/infeasible
+candidates and a preferred state choice per room, room-level feasible-state
+counts, reconstruction subsets and the final optimum. Detailed state traces
+require N <= 6 and R <= 8. Candidate evidence separates room compatibility,
+slot capacity and predecessor reachability. Inventory threat is shown alongside
+the global budget, which is enforced when selecting the final inventory.
 All traces are capped at 4096 events (default 256, zero disables storage).
 Mask bits use the active pack list sorted by ID. Summaries/truncation do not change
 the DP traversal or counters. Interrupted solver runs do not emit `optimal`;

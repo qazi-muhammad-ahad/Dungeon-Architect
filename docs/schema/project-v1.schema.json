@@ -239,6 +239,22 @@
           },
           "maxItems": 4096
         },
+        "template_catalogue": {
+          "description": "Pinned fallback inventory used only when source.packs is empty. Its pack IDs are distinct from custom IDs.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "packs"],
+          "properties": {
+            "version": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$"
+            },
+            "packs": {
+              "$ref": "#/properties/source/properties/packs",
+              "minItems": 1
+            }
+          }
+        },
         "packs": {
           "type": "array",
           "items": {

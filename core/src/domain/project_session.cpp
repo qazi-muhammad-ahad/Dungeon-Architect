@@ -30,11 +30,13 @@ bool geometry_equal(const Project& a, const Project& b) {
            equal_vectors(a.rooms, b.rooms, [](const Room& x, const Room& y) { return room_geometry(x) == room_geometry(y); });
 }
 bool active_packs_equal(const Project& a, const Project& b) {
-    auto x = a.packs.begin(), y = b.packs.begin();
+    const auto& left = a.effective_packs();
+    const auto& right = b.effective_packs();
+    auto x = left.begin(), y = right.begin();
     for (;;) {
-        while (x != a.packs.end() && !x->active) ++x;
-        while (y != b.packs.end() && !y->active) ++y;
-        if (x == a.packs.end() || y == b.packs.end()) return x == a.packs.end() && y == b.packs.end();
+        while (x != left.end() && !x->active) ++x;
+        while (y != right.end() && !y->active) ++y;
+        if (x == left.end() || y == right.end()) return x == left.end() && y == right.end();
         if (pack_input(*x) != pack_input(*y)) return false;
         ++x; ++y;
     }
@@ -44,12 +46,17 @@ bool allocation_equal(const Project& a, const Project& b) {
            equal_vectors(a.rooms, b.rooms, [](const Room& x, const Room& y) { return room_allocation(x) == room_allocation(y); });
 }
 bool source_equal(const Project& a, const Project& b) {
-    return a.name == b.name && geometry_equal(a, b) && a.settings.threat_budget == b.settings.threat_budget &&
+    auto pack_equal = [](const Pack& x, const Pack& y) {
+        return x.name == y.name && pack_input(x) == pack_input(y);
+    };
+    const auto& t = a.template_catalogue;
+    const auto& u = b.template_catalogue;
+    const bool same_templates = t.has_value() == u.has_value() &&
+        (!t || (t->version == u->version && equal_vectors(t->packs, u->packs, pack_equal)));
+    return same_templates && a.name == b.name && geometry_equal(a, b) && a.settings.threat_budget == b.settings.threat_budget &&
            equal_vectors(a.rooms, b.rooms, [](const Room& x, const Room& y) {
                return x.name == y.name && room_allocation(x) == room_allocation(y);
-           }) && equal_vectors(a.packs, b.packs, [](const Pack& x, const Pack& y) {
-               return x.name == y.name && pack_input(x) == pack_input(y);
-           });
+           }) && equal_vectors(a.packs, b.packs, pack_equal);
 }
 bool exhausted(std::uint64_t value) { return value == std::numeric_limits<std::uint64_t>::max(); }
 Status revision_failure() {

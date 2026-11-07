@@ -384,10 +384,10 @@ class EncounterCatalogue extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                'Encounter catalogue',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                c.usingTemplates ? 'Template packs' : 'Custom packs',
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             IconButton(
@@ -398,13 +398,21 @@ class EncounterCatalogue extends StatelessWidget {
           ],
         ),
         Text(
-          '${c.activePackCount} active / ${ProjectController.exactPackLimit} exact-solve limit · ${c.catalogue.length} saved',
+          '${c.activePackCount} active / ${ProjectController.exactPackLimit} exact-solve limit · ${c.effectiveCatalogue.length} packs',
         ),
         if (c.activePackCount > ProjectController.exactPackLimit)
           const Text(
             'Too many active packs for exact optimization. Deactivate entries; Generate only remains available.',
           ),
-        for (final item in c.catalogue)
+        if (c.usingTemplates)
+          Text(
+            'Using template packs (${c.source['template_catalogue']['version']}). Add your own packs to replace them.',
+          ),
+        if (!c.usingTemplates &&
+            c.catalogue.isNotEmpty &&
+            c.activePackCount == 0)
+          const Text('Activate a custom pack to place encounters.'),
+        for (final item in c.effectiveCatalogue)
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Column(
@@ -418,50 +426,67 @@ class EncounterCatalogue extends StatelessWidget {
                         maxLines: 2,
                       ),
                     ),
-                    Switch(
-                      value: item['active'] as bool,
-                      onChanged: c.canRun
-                          ? (v) {
-                              final p = Map<String, dynamic>.from(item as Map);
-                              p['active'] = v;
-                              c.savePack(p);
-                            }
-                          : null,
-                    ),
+                    if (c.usingTemplates)
+                      Text(item['active'] == true ? 'Active' : 'Inactive')
+                    else
+                      Switch(
+                        value: item['active'] as bool,
+                        onChanged: c.canRun
+                            ? (v) {
+                                final p = Map<String, dynamic>.from(
+                                  item as Map,
+                                );
+                                p['active'] = v;
+                                c.savePack(p);
+                              }
+                            : null,
+                      ),
                   ],
                 ),
                 Text(
                   '${item['slots']} slots · ${item['threat']} threat · ${item['score']} score',
                   style: const TextStyle(fontSize: 11),
                 ),
-                Wrap(
-                  children: [
-                    TextButton(
-                      onPressed: c.canRun
-                          ? () => editPack(
-                              context,
-                              c,
-                              Map<String, dynamic>.from(item as Map),
-                            )
-                          : null,
-                      child: const Text('Edit pack'),
-                    ),
-                    IconButton(
-                      tooltip: 'Duplicate pack',
-                      onPressed: c.canRun
-                          ? () => c.duplicatePack(item['id'] as String)
-                          : null,
-                      icon: const Icon(Icons.copy, size: 16),
-                    ),
-                    IconButton(
-                      tooltip: 'Remove pack',
-                      onPressed: c.canRun
-                          ? () => c.removePack(item['id'] as String)
-                          : null,
-                      icon: const Icon(Icons.delete_outline, size: 16),
-                    ),
-                  ],
+                Text(
+                  'Minimum room ${item['min_room_width']} × ${item['min_room_height']} · roles ${(item['allowed_roles'] as List).isEmpty ? 'any except entrance' : (item['allowed_roles'] as List).join(', ')} · tags ${(item['required_tags'] as List).isEmpty ? 'none' : (item['required_tags'] as List).join(', ')}',
+                  style: const TextStyle(fontSize: 11),
                 ),
+                if (c.usingTemplates)
+                  TextButton(
+                    onPressed: c.canRun
+                        ? () => c.duplicatePack(item['id'] as String)
+                        : null,
+                    child: const Text('Copy to custom packs'),
+                  )
+                else
+                  Wrap(
+                    children: [
+                      TextButton(
+                        onPressed: c.canRun
+                            ? () => editPack(
+                                context,
+                                c,
+                                Map<String, dynamic>.from(item as Map),
+                              )
+                            : null,
+                        child: const Text('Edit pack'),
+                      ),
+                      IconButton(
+                        tooltip: 'Duplicate pack',
+                        onPressed: c.canRun
+                            ? () => c.duplicatePack(item['id'] as String)
+                            : null,
+                        icon: const Icon(Icons.copy, size: 16),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove pack',
+                        onPressed: c.canRun
+                            ? () => c.removePack(item['id'] as String)
+                            : null,
+                        icon: const Icon(Icons.delete_outline, size: 16),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),

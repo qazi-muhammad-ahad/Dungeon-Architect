@@ -15,6 +15,8 @@ typedef NativeStep = Future<Map<String, dynamic>> Function({
 class PlayController extends ChangeNotifier {
   PlayController(this.step);
   final NativeStep step;
+  final ValueNotifier<(double, double)> motion = ValueNotifier((0.0, 0.0));
+  final List<(double, double)> _approvedMotion = [];
   Map<String, dynamic>? snapshot;
   int job = 0, revision = -1, x = 0, y = 0;
   bool paused = true, completed = false, moving = false;
@@ -37,6 +39,7 @@ class PlayController extends ChangeNotifier {
     final entrance = payload['geometry']['entrance_marker'];
     x = entrance['x'] as int;
     y = entrance['y'] as int;
+    _settleMotion();
     completed = false;
     paused = false;
     held.clear();
@@ -51,8 +54,14 @@ class PlayController extends ChangeNotifier {
     }
   }
 
+  void _settleMotion() {
+    _approvedMotion.clear();
+    if (!_disposed) motion.value = (x.toDouble(), y.toDouble());
+  }
+
   void pause() {
     paused = true;
+    _settleMotion();
     held.clear();
     _elapsed = 0;
     _epoch++;
@@ -93,14 +102,16 @@ class PlayController extends ChangeNotifier {
   /// Fixed 8 tiles/s, at most 8 cardinal steps per callback. Excess suspended
   /// time is dropped; no leap or unbounded queued movement is ever submitted.
   Future<void> advance(Duration delta) async {
+    _advanceMotion(delta);
     if (paused || completed || snapshot == null || held.isEmpty) {
       return;
     }
     _elapsed = (_elapsed + delta.inMicroseconds.clamp(0, 1000000) / 1000000)
         .clamp(0, 1);
-    if (moving) {
+    if (moving || _elapsed < .125) {
       return;
     }
+    var changed = false;
     final epoch = _epoch;
     moving = true;
     try {
@@ -133,8 +144,13 @@ class PlayController extends ChangeNotifier {
         if (_disposed || epoch != _epoch) {
           return;
         }
-        x = position['x'] as int;
-        y = position['y'] as int;
+        final nextX = position['x'] as int, nextY = position['y'] as int;
+        if (nextX != x || nextY != y) {
+          _approvedMotion.add((nextX.toDouble(), nextY.toDouble()));
+          changed = true;
+        }
+        x = nextX;
+        y = nextY;
         final exit = snapshot!['geometry']['exit_marker'];
         completed = x == exit['x'] && y == exit['y'];
         if (completed) {
@@ -150,24 +166,57 @@ class PlayController extends ChangeNotifier {
       if (!_disposed && epoch == _epoch) {
         invalidate();
         message = 'Movement stopped: $error';
+        changed = true;
       }
     } finally {
       moving = false;
-      if (!_disposed) {
+      if (!_disposed && changed) {
         notifyListeners();
       }
     }
   }
 
-  Map<String, dynamic>? nearbyActor() {
-    for (final actor in snapshot?['allocation']?['actors'] as List? ?? []) {
-      final tile = actor['tile'];
-      if ((x - (tile['x'] as int)).abs() + (y - (tile['y'] as int)).abs() <=
-          2) {
-        return Map<String, dynamic>.from(actor as Map);
+  void _advanceMotion(Duration delta) {
+    if (_disposed || _approvedMotion.isEmpty) return;
+    var remaining = delta.inMicroseconds.clamp(0, 100000) / 1000000;
+    var pose = motion.value;
+    while (remaining > 0 && _approvedMotion.isNotEmpty) {
+      final target = _approvedMotion.first;
+      final dx = target.$1 - pose.$1, dy = target.$2 - pose.$2;
+      final distance = dx.abs() + dy.abs();
+      // Approved cardinal segments remain ordered even after a delayed callback.
+      final secondsPerTile =
+          .125 / (_approvedMotion.length > 2 ? _approvedMotion.length / 2 : 1);
+      final travel = remaining / secondsPerTile;
+      if (distance <= travel) {
+        pose = target;
+        _approvedMotion.removeAt(0);
+        remaining -= distance * secondsPerTile;
+      } else {
+        pose = (
+          pose.$1 + dx * travel / distance,
+          pose.$2 + dy * travel / distance,
+        );
+        remaining = 0;
       }
     }
-    return null;
+    motion.value = pose;
+  }
+
+  Map<String, dynamic>? nearbyActor() {
+    Map? nearest;
+    var bestDistance = 3;
+    for (final actor in snapshot?['allocation']?['actors'] as List? ?? []) {
+      final tile = actor['tile'];
+      final distance =
+          (x - (tile['x'] as int)).abs() + (y - (tile['y'] as int)).abs();
+      if (distance < bestDistance) {
+        nearest = actor as Map;
+        bestDistance = distance;
+        if (distance == 0) break;
+      }
+    }
+    return nearest == null ? null : Map<String, dynamic>.from(nearest);
   }
 
   @override
@@ -175,6 +224,8 @@ class PlayController extends ChangeNotifier {
     _disposed = true;
     _epoch++;
     held.clear();
+    _approvedMotion.clear();
+    motion.dispose();
     super.dispose();
   }
 }

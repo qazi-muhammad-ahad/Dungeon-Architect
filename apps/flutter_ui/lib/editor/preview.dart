@@ -6,12 +6,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../engine/engine.dart';
+import 'analysis_panel.dart';
 import 'camera.dart';
 import 'canvas_history.dart';
 import 'exact_json.dart';
 import 'project_controller.dart';
 import 'theme.dart';
 import 'pixel_palette.dart';
+import 'routing_replay.dart';
+import 'analysis_controller.dart';
+import 'allocation_decision.dart';
 
 enum CanvasTool {
   select,
@@ -42,6 +46,7 @@ class DungeonPreview extends StatefulWidget {
 
 class _DungeonPreviewState extends State<DungeonPreview> {
   final camera = CanvasCamera(), history = CanvasHistory(), focus = FocusNode();
+  final routingReplay = RoutingReplay();
   final Set<int> stroke = {};
   CanvasTool tool = CanvasTool.select;
   int brush = 1;
@@ -55,14 +60,21 @@ class _DungeonPreviewState extends State<DungeonPreview> {
       waiting = false;
   Point<int>? hover, start, last;
   Size viewport = Size.zero;
+  double trackpadScale = 1;
   EngineResult? pending;
   Map<String, dynamic>? previewSource;
   int previewRevision = -1;
   List<dynamic> errors = [];
   Map<String, dynamic>? dragRoom;
   ProjectController get c => widget.controller;
-  int get columns => c.settings['columns'] as int? ?? 150;
-  int get rows => c.settings['rows'] as int? ?? 150;
+  Map<String, dynamic> get canvasSource =>
+      (!design
+          ? c.payload?['source_project']?['source'] as Map<String, dynamic>?
+          : null) ??
+      previewSource ??
+      c.source;
+  int get columns => canvasSource['settings']?['columns'] as int? ?? 150;
+  int get rows => canvasSource['settings']?['rows'] as int? ?? 150;
   bool get design => c.view == EditorView.design;
   bool get editable =>
       c.document != null &&
@@ -128,26 +140,14 @@ class _DungeonPreviewState extends State<DungeonPreview> {
     focus.requestFocus();
     if (waiting || pending != null) return;
     panning =
-        event.buttons == kMiddleMouseButton || space || tool == CanvasTool.pan;
-    if (panning) return;
+        event.buttons == kMiddleMouseButton ||
+        (event.buttons == kPrimaryMouseButton &&
+            (!design || space || tool == CanvasTool.pan));
+    if (!design || panning) return;
     if (event.buttons != kPrimaryMouseButton) return;
     final point = camera.tileAt(event.localPosition, columns, rows);
     if (point == null) return;
-    if (c.view == EditorView.analyze &&
-        c.scenario.blocking &&
-        !c.stale &&
-        !c.scenario.busy) {
-      final g = c.payload?['geometry'];
-      final entrance = g?['entrance_marker'];
-      final floor = g?['layers']?['floor'] as List?;
-      if (floor != null &&
-          floor[point.y][point.x] == '1' &&
-          (point.x != entrance['x'] || point.y != entrance['y'])) {
-        c.scenario.toggleTile(point.x, point.y);
-      }
-      return;
-    }
-    if (!design || tool == CanvasTool.select) {
+    if (tool == CanvasTool.select) {
       String? id;
       for (final room in c.editableRooms.reversed) {
         final b = room['bounds'];
@@ -160,19 +160,6 @@ class _DungeonPreviewState extends State<DungeonPreview> {
         }
       }
       c.select(id);
-      if (c.view == EditorView.analyze) {
-        int? node;
-        for (final n in c.payload?['layout']?['partitions'] as List? ?? []) {
-          final b = n['bounds'];
-          if (point.x >= b['x'] &&
-              point.y >= b['y'] &&
-              point.x < b['x'] + b['width'] &&
-              point.y < b['y'] + b['height']) {
-            node = n['id'] as int;
-          }
-        }
-        c.selectPartition(node);
-      }
       return;
     }
     if (!editable) return;
@@ -528,209 +515,253 @@ class _DungeonPreviewState extends State<DungeonPreview> {
   @override
   Widget build(BuildContext context) {
     final colors = EditorColors.of(context);
+    final routingActive =
+        !design &&
+        (c.playback.current?['stage'] == 'routing' ||
+            (c.playback.selection == TraceSelection.routing &&
+                c.playback.selectedEvents.isNotEmpty));
+    routingReplay.update(
+      c.playback.events,
+      c.playback.currentOriginalIndex ?? -1,
+    );
+    final allocationDecision =
+        !design &&
+            c.playback.current?['stage'] == 'allocation' &&
+            c.result != null
+        ? AllocationDecision(c.playback.current!, c.result!.document)
+        : null;
+    final allocatedPacks = allocationDecision == null
+        ? <String, String>{}
+        : AllocationDecision.placements(
+            c.playback.events,
+            c.playback.currentOriginalIndex ?? -1,
+            c.result!.document,
+          );
     return Column(
       children: [
-        Material(
-          color: colors.panel,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (design) ...[
-                  PopupMenuButton<CanvasTool>(
-                    tooltip: 'Room tools',
-                    enabled: editable && !c.canvasDraft,
-                    onSelected: (t) => setState(() => tool = t),
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(
-                        value: CanvasTool.room,
-                        child: Text('Draw fixed room'),
-                      ),
-                      const PopupMenuItem(
-                        value: CanvasTool.moveRoom,
-                        child: Text('Move unlocked room'),
-                      ),
-                      const PopupMenuItem(
-                        value: CanvasTool.resizeRoom,
-                        child: Text('Resize unlocked room'),
-                      ),
-                    ],
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 12,
-                      ),
-                      child: Text(
-                        'Room ▾',
-                        style: TextStyle(
-                          color: roomTool ? colors.violet : colors.ink,
+        if (!design)
+          AnalyzePanel(
+            controller: c,
+            canvasActions: [
+              icon('Fit canvas (F)', Icons.fit_screen, fit),
+              icon(
+                'Zoom in',
+                Icons.add,
+                () => setState(
+                  () => camera.zoom(viewport.center(Offset.zero), 1.25),
+                ),
+              ),
+              icon(
+                'Zoom out',
+                Icons.remove,
+                () => setState(
+                  () => camera.zoom(viewport.center(Offset.zero), .8),
+                ),
+              ),
+            ],
+          )
+        else
+          Material(
+            color: colors.panel,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (design) ...[
+                    PopupMenuButton<CanvasTool>(
+                      tooltip: 'Room tools',
+                      enabled: editable && !c.canvasDraft,
+                      onSelected: (t) => setState(() => tool = t),
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: CanvasTool.room,
+                          child: Text('Draw fixed room'),
+                        ),
+                        const PopupMenuItem(
+                          value: CanvasTool.moveRoom,
+                          child: Text('Move unlocked room'),
+                        ),
+                        const PopupMenuItem(
+                          value: CanvasTool.resizeRoom,
+                          child: Text('Resize unlocked room'),
+                        ),
+                      ],
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 12,
+                        ),
+                        child: Text(
+                          'Room ▾',
+                          style: TextStyle(
+                            color: roomTool ? colors.violet : colors.ink,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  for (final t in CanvasTool.values.take(4))
+                    for (final t in CanvasTool.values.take(4))
+                      icon(
+                        [
+                          'Select room',
+                          'Pan (Space / middle drag)',
+                          'Paint allowed tiles',
+                          'Erase allowed tiles',
+                          'Fill connected area',
+                          'Clear connected area',
+                          'Rectangle preset',
+                          'Ellipse preset',
+                          'L-shape preset',
+                        ][t.index],
+                        [
+                          Icons.near_me_outlined,
+                          Icons.pan_tool_outlined,
+                          Icons.brush_outlined,
+                          Icons.auto_fix_normal,
+                          Icons.format_color_fill,
+                          Icons.format_color_reset,
+                          Icons.crop_square,
+                          Icons.circle_outlined,
+                          Icons.turn_right,
+                        ][t.index],
+                        editable && !c.canvasDraft
+                            ? () => setState(() => tool = t)
+                            : null,
+                        selected: tool == t,
+                      ),
+                    PopupMenuButton<CanvasTool>(
+                      tooltip: 'Fill tools',
+                      enabled: editable && !c.canvasDraft,
+                      onSelected: (t) => setState(() => tool = t),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: CanvasTool.fill,
+                          child: Text('Fill connected area'),
+                        ),
+                        PopupMenuItem(
+                          value: CanvasTool.clear,
+                          child: Text('Clear connected area'),
+                        ),
+                      ],
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 12,
+                        ),
+                        child: Text(
+                          'Fill ▾',
+                          style: TextStyle(
+                            color:
+                                tool == CanvasTool.fill ||
+                                    tool == CanvasTool.clear
+                                ? colors.violet
+                                : colors.ink,
+                          ),
+                        ),
+                      ),
+                    ),
+                    PopupMenuButton<CanvasTool>(
+                      tooltip: 'Shape tools',
+                      enabled: editable && !c.canvasDraft,
+                      onSelected: (t) => setState(() => tool = t),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: CanvasTool.rectangle,
+                          child: Text('Rectangle preset'),
+                        ),
+                        PopupMenuItem(
+                          value: CanvasTool.ellipse,
+                          child: Text('Ellipse preset'),
+                        ),
+                        PopupMenuItem(
+                          value: CanvasTool.lShape,
+                          child: Text('L-shape preset'),
+                        ),
+                      ],
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 12,
+                        ),
+                        child: Text(
+                          'Shapes ▾',
+                          style: TextStyle(
+                            color: shape ? colors.violet : colors.ink,
+                          ),
+                        ),
+                      ),
+                    ),
                     icon(
-                      [
-                        'Select room',
-                        'Pan (Space / middle drag)',
-                        'Paint allowed tiles',
-                        'Erase allowed tiles',
-                        'Fill connected area',
-                        'Clear connected area',
-                        'Rectangle preset',
-                        'Ellipse preset',
-                        'L-shape preset',
-                      ][t.index],
-                      [
-                        Icons.near_me_outlined,
-                        Icons.pan_tool_outlined,
-                        Icons.brush_outlined,
-                        Icons.auto_fix_normal,
-                        Icons.format_color_fill,
-                        Icons.format_color_reset,
-                        Icons.crop_square,
-                        Icons.circle_outlined,
-                        Icons.turn_right,
-                      ][t.index],
-                      editable && !c.canvasDraft
-                          ? () => setState(() => tool = t)
+                      'Undo mask stroke (Ctrl+Z)',
+                      Icons.undo,
+                      editable && !c.canvasDraft && history.undo.isNotEmpty
+                          ? () => undo(false)
                           : null,
-                      selected: tool == t,
                     ),
-                  PopupMenuButton<CanvasTool>(
-                    tooltip: 'Fill tools',
-                    enabled: editable && !c.canvasDraft,
-                    onSelected: (t) => setState(() => tool = t),
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: CanvasTool.fill,
-                        child: Text('Fill connected area'),
-                      ),
-                      PopupMenuItem(
-                        value: CanvasTool.clear,
-                        child: Text('Clear connected area'),
-                      ),
-                    ],
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 12,
-                      ),
-                      child: Text(
-                        'Fill ▾',
-                        style: TextStyle(
-                          color:
-                              tool == CanvasTool.fill ||
-                                  tool == CanvasTool.clear
-                              ? colors.violet
-                              : colors.ink,
-                        ),
-                      ),
+                    icon(
+                      'Redo mask stroke (Ctrl+Shift+Z)',
+                      Icons.redo,
+                      editable && !c.canvasDraft && history.redo.isNotEmpty
+                          ? () => undo(true)
+                          : null,
                     ),
-                  ),
-                  PopupMenuButton<CanvasTool>(
-                    tooltip: 'Shape tools',
-                    enabled: editable && !c.canvasDraft,
-                    onSelected: (t) => setState(() => tool = t),
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: CanvasTool.rectangle,
-                        child: Text('Rectangle preset'),
-                      ),
-                      PopupMenuItem(
-                        value: CanvasTool.ellipse,
-                        child: Text('Ellipse preset'),
-                      ),
-                      PopupMenuItem(
-                        value: CanvasTool.lShape,
-                        child: Text('L-shape preset'),
-                      ),
-                    ],
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 12,
-                      ),
-                      child: Text(
-                        'Shapes ▾',
-                        style: TextStyle(
-                          color: shape ? colors.violet : colors.ink,
-                        ),
-                      ),
-                    ),
-                  ),
-                  icon(
-                    'Undo mask stroke (Ctrl+Z)',
-                    Icons.undo,
-                    editable && !c.canvasDraft && history.undo.isNotEmpty
-                        ? () => undo(false)
-                        : null,
-                  ),
-                  icon(
-                    'Redo mask stroke (Ctrl+Shift+Z)',
-                    Icons.redo,
-                    editable && !c.canvasDraft && history.redo.isNotEmpty
-                        ? () => undo(true)
-                        : null,
-                  ),
-                  icon(
-                    'Resize canvas',
-                    Icons.aspect_ratio,
-                    editable && !c.canvasDraft ? resize : null,
-                  ),
-                ],
-                icon('Fit canvas (F)', Icons.fit_screen, fit),
-                icon(
-                  'Zoom in',
-                  Icons.add,
-                  () => setState(
-                    () => camera.zoom(viewport.center(Offset.zero), 1.25),
-                  ),
-                ),
-                icon(
-                  'Zoom out',
-                  Icons.remove,
-                  () => setState(
-                    () => camera.zoom(viewport.center(Offset.zero), .8),
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  tooltip: 'Canvas layers',
-                  icon: const Icon(Icons.layers_outlined, size: 17),
-                  onSelected: (s) => setState(() {
-                    if (s == 'floor') showFloor = !showFloor;
-                    if (s == 'walls') showWalls = !showWalls;
-                    if (s == 'reservations') reservations = !reservations;
-                    if (s == 'diagnostics') diagnostics = !diagnostics;
-                  }),
-                  itemBuilder: (_) => [
-                    CheckedPopupMenuItem(
-                      value: 'floor',
-                      checked: showFloor,
-                      child: const Text('Generated floor'),
-                    ),
-                    CheckedPopupMenuItem(
-                      value: 'walls',
-                      checked: showWalls,
-                      child: const Text('Walls'),
-                    ),
-                    CheckedPopupMenuItem(
-                      value: 'reservations',
-                      checked: reservations,
-                      child: const Text('Fixed-room reservations'),
-                    ),
-                    CheckedPopupMenuItem(
-                      value: 'diagnostics',
-                      checked: diagnostics,
-                      child: const Text('Detached / narrow / rejected tiles'),
+                    icon(
+                      'Resize canvas',
+                      Icons.aspect_ratio,
+                      editable && !c.canvasDraft ? resize : null,
                     ),
                   ],
-                ),
-              ],
+                  icon('Fit canvas (F)', Icons.fit_screen, fit),
+                  icon(
+                    'Zoom in',
+                    Icons.add,
+                    () => setState(
+                      () => camera.zoom(viewport.center(Offset.zero), 1.25),
+                    ),
+                  ),
+                  icon(
+                    'Zoom out',
+                    Icons.remove,
+                    () => setState(
+                      () => camera.zoom(viewport.center(Offset.zero), .8),
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Canvas layers',
+                    icon: const Icon(Icons.layers_outlined, size: 17),
+                    onSelected: (s) => setState(() {
+                      if (s == 'floor') showFloor = !showFloor;
+                      if (s == 'walls') showWalls = !showWalls;
+                      if (s == 'reservations') reservations = !reservations;
+                      if (s == 'diagnostics') diagnostics = !diagnostics;
+                    }),
+                    itemBuilder: (_) => [
+                      CheckedPopupMenuItem(
+                        value: 'floor',
+                        checked: showFloor,
+                        child: const Text('Generated floor'),
+                      ),
+                      CheckedPopupMenuItem(
+                        value: 'walls',
+                        checked: showWalls,
+                        child: const Text('Walls'),
+                      ),
+                      CheckedPopupMenuItem(
+                        value: 'reservations',
+                        checked: reservations,
+                        child: const Text('Fixed-room reservations'),
+                      ),
+                      CheckedPopupMenuItem(
+                        value: 'diagnostics',
+                        checked: diagnostics,
+                        child: const Text('Detached / narrow / rejected tiles'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
         if (design)
           Container(
             height: 64,
@@ -836,7 +867,7 @@ class _DungeonPreviewState extends State<DungeonPreview> {
                   if (!v) space = false;
                 },
                 child: MouseRegion(
-                  cursor: tool == CanvasTool.pan || space
+                  cursor: !design || tool == CanvasTool.pan || space
                       ? SystemMouseCursors.grab
                       : tool == CanvasTool.select
                       ? SystemMouseCursors.basic
@@ -851,7 +882,7 @@ class _DungeonPreviewState extends State<DungeonPreview> {
                     onPointerUp: up,
                     onPointerCancel: (_) {
                       panning = false;
-                      if (!waiting) cancelPreview();
+                      if (design && !waiting) cancelPreview();
                     },
                     onPointerSignal: (event) {
                       if (event is PointerScrollEvent) {
@@ -873,51 +904,92 @@ class _DungeonPreviewState extends State<DungeonPreview> {
                         );
                       }
                     },
+                    onPointerPanZoomStart: (_) => trackpadScale = 1,
                     onPointerPanZoomUpdate: (event) => setState(() {
                       camera.pan(event.panDelta);
+                      camera.zoom(
+                        event.localPosition,
+                        event.scale / trackpadScale,
+                      );
+                      trackpadScale = event.scale;
                     }),
                     child: Semantics(
-                      label: 'Design tile canvas. Wheel zooms; Space or middle drag pans. Use toolbar tools to edit.',
+                      label: design
+                          ? 'Design tile canvas. Wheel zooms; Space or middle drag pans.'
+                          : 'Trace canvas. Drag to pan; wheel zooms at the pointer.',
                       image: true,
                       child: RepaintBoundary(
-                        child: CustomPaint(
-                          size: next,
-                          painter: CanvasPainter(
-                            camera: camera,
-                            dpr: MediaQuery.devicePixelRatioOf(context),
-                            source: previewSource ?? c.source,
-                            payload: c.view == EditorView.analyze
-                                ? c.scenario.displayPayload
-                                : c.payload,
-                            blockedTiles: c.view == EditorView.analyze
-                                ? c.scenario.blocked
-                                : const {},
-                            analysis:
-                                pending?.document['editor_analysis']
-                                    as Map<String, dynamic>? ??
-                                c.editorAnalysis,
-                            colors: colors,
-                            grid: widget.grid,
-                            diagnostics: diagnostics,
-                            reservations: reservations,
-                            floor: showFloor,
-                            walls: showWalls,
-                            selected: c.selectedRoom,
-                            overlays: c.view == EditorView.analyze
-                                ? c.overlays
-                                : null,
-                            selectedPartition: c.view == EditorView.analyze
-                                ? c.selectedPartition
-                                : null,
-                            traceEvent: c.view == EditorView.analyze
-                                ? c.playback.current
-                                : null,
-                            stroke: Set.of(stroke),
-                            erase: tool == CanvasTool.erase,
-                            dragStart: start,
-                            dragEnd: last,
-                            shape: shape || roomTool,
-                            errors: errors,
+                        child: TweenAnimationBuilder<double>(
+                          key: ValueKey((
+                            c.playback.runId,
+                            c.playback.currentOriginalIndex,
+                            c.playback.playing,
+                            c.playback.speed,
+                            c.reduceTraceMotion,
+                            MediaQuery.disableAnimationsOf(context),
+                          )),
+                          tween: Tween(begin: 0.0, end: 1.0),
+                          duration:
+                              c.view != EditorView.analyze ||
+                                  c.playback.current == null ||
+                                  !c.playback.playing ||
+                                  c.reduceTraceMotion ||
+                                  MediaQuery.disableAnimationsOf(context) ||
+                                  c.playback.speed > 10
+                              ? Duration.zero
+                              : Duration(
+                                  milliseconds:
+                                      ((allocationDecision == null
+                                                  ? 650
+                                                  : 800) /
+                                              c.playback.speed)
+                                          .clamp(
+                                            30,
+                                            allocationDecision == null
+                                                ? 240
+                                                : 700,
+                                          )
+                                          .round(),
+                                ),
+                          builder: (context, progress, _) => CustomPaint(
+                            size: next,
+                            painter: CanvasPainter(
+                              camera: camera,
+                              dpr: MediaQuery.devicePixelRatioOf(context),
+                              source: canvasSource,
+                              payload: c.payload,
+                              analysis: design
+                                  ? (pending?.document['editor_analysis']
+                                            as Map<String, dynamic>? ??
+                                        c.editorAnalysis)
+                                  : const {},
+                              colors: colors,
+                              grid: widget.grid,
+                              diagnostics: diagnostics,
+                              reservations: reservations,
+                              floor: showFloor,
+                              walls: showWalls,
+                              selected: design ? c.selectedRoom : null,
+                              traceEvent: c.view == EditorView.analyze
+                                  ? c.playback.current
+                                  : null,
+                              traceProgress: progress,
+                              routingReplay: routingActive
+                                  ? routingReplay
+                                  : null,
+                              allocationDecision: allocationDecision,
+                              allocatedPacks: allocatedPacks,
+                              tracePackOrder:
+                                  c.result?.document['stages']?['allocation']?['pack_bit_order']
+                                      as List? ??
+                                  const [],
+                              stroke: Set.of(stroke),
+                              erase: tool == CanvasTool.erase,
+                              dragStart: start,
+                              dragEnd: last,
+                              shape: shape || roomTool,
+                              errors: errors,
+                            ),
                           ),
                         ),
                       ),
@@ -928,35 +1000,36 @@ class _DungeonPreviewState extends State<DungeonPreview> {
             },
           ),
         ),
-        Container(
-          color: colors.panel,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          child: Row(
-            children: [
-              Text(
-                hover == null ? 'Tile —' : 'Tile ${hover!.x}, ${hover!.y}',
-                style: TextStyle(fontSize: 11, color: colors.muted),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '${camera.scale.toStringAsFixed(1)} px/tile',
-                style: TextStyle(fontSize: 11, color: colors.muted),
-              ),
-              const Spacer(),
-              Flexible(
-                child: Text(
-                  waiting
-                      ? 'Checking edit…'
-                      : diagnostics
-                      ? '/ detached · X no corridor-width clearance (zoom for pattern)'
-                      : '$columns × $rows',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10, color: colors.muted),
+        if (design)
+          Container(
+            color: colors.panel,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            child: Row(
+              children: [
+                Text(
+                  hover == null ? 'Tile —' : 'Tile ${hover!.x}, ${hover!.y}',
+                  style: TextStyle(fontSize: 11, color: colors.muted),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Text(
+                  '${camera.scale.toStringAsFixed(1)} px/tile',
+                  style: TextStyle(fontSize: 11, color: colors.muted),
+                ),
+                const Spacer(),
+                Flexible(
+                  child: Text(
+                    waiting
+                        ? 'Checking edit…'
+                        : diagnostics
+                        ? '/ detached · X no corridor-width clearance (zoom for pattern)'
+                        : '$columns × $rows',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10, color: colors.muted),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
@@ -976,16 +1049,18 @@ class CanvasPainter extends CustomPainter {
     required this.walls,
     this.dpr = 1,
     this.selected,
-    this.overlays,
-    this.selectedPartition,
     this.traceEvent,
+    this.traceProgress = 1,
+    this.routingReplay,
+    this.allocationDecision,
+    this.allocatedPacks = const {},
+    this.tracePackOrder = const [],
     this.stroke = const {},
     this.erase = false,
     this.dragStart,
     this.dragEnd,
     this.shape = false,
     this.errors = const [],
-    this.blockedTiles = const {},
   });
   final CanvasCamera camera;
   final double dpr;
@@ -994,14 +1069,15 @@ class CanvasPainter extends CustomPainter {
   final EditorColors colors;
   final bool grid, diagnostics, reservations, floor, walls, erase, shape;
   final String? selected;
-  final Set<String>? overlays;
-  final int? selectedPartition;
   final Map<String, dynamic>? traceEvent;
-  bool show(String key) => overlays == null || overlays!.contains(key);
+  final double traceProgress;
+  final RoutingReplay? routingReplay;
+  final AllocationDecision? allocationDecision;
+  final Map<String, String> allocatedPacks;
+  final List<dynamic> tracePackOrder;
   final Set<int> stroke;
   final Point<int>? dragStart, dragEnd;
   final List<dynamic> errors;
-  final Set<String> blockedTiles;
   int visitedCells = 0, paintMicros = 0;
   @override
   void paint(Canvas canvas, Size size) {
@@ -1061,12 +1137,10 @@ class CanvasPainter extends CustomPainter {
       }
     }
 
-    if (show('mask')) {
-      layer(
-        source['allowed_mask'] as List?,
-        colors.dark ? const Color(0xFF38393C) : const Color(0xFFF7F8F4),
-      );
-    }
+    layer(
+      source['allowed_mask'] as List?,
+      colors.dark ? const Color(0xFF38393C) : const Color(0xFFF7F8F4),
+    );
     if (grid && s >= 2) {
       final paint = Paint()
         ..color = colors.line.withValues(alpha: .5)
@@ -1096,17 +1170,19 @@ class CanvasPainter extends CustomPainter {
       }
     }
     final geometry = payload?['geometry'];
-    if (walls) {
+    final finalGeometry =
+        routingReplay == null || routingReplay!.geometryComplete;
+    if (walls && finalGeometry) {
       layer(geometry?['layers']?['walls'] as List?, DungeonPixels.wall);
     }
-    if (floor) {
+    if (floor && finalGeometry) {
       layer(
         geometry?['layers']?['floor'] as List?,
         colors.dark ? DungeonPixels.floor : const Color(0xffd5dfd2),
       );
     }
     // Details are omitted below eight logical pixels per tile; boundaries remain crisp.
-    if (s >= 8) {
+    if (s >= 8 && finalGeometry) {
       final layers = geometry?['layers'];
       bool occupied(String key, int x, int y) {
         final data = layers?[key] as List?;
@@ -1123,13 +1199,21 @@ class CanvasPainter extends CustomPainter {
               ? 'wall'
               : null;
           if (kind != null) {
-            DungeonPixels.motif(canvas, rect(x, y, 1, 1), kind, dpr);
+            DungeonPixels.motif(
+              canvas,
+              rect(x, y, 1, 1),
+              kind,
+              dpr,
+              variant: x + y * 7,
+            );
           }
         }
       }
     }
-    if (show('doors')) {
+    {
       for (final door in geometry?['doors'] as List? ?? []) {
+        final route = routingReplay;
+        if (route != null && !route.geometryComplete) continue;
         for (final tile in door['tiles'] as List) {
           DungeonPixels.motif(
             canvas,
@@ -1139,6 +1223,9 @@ class CanvasPainter extends CustomPainter {
           );
         }
       }
+    }
+    if (routingReplay != null && !routingReplay!.geometryComplete) {
+      _paintRouting(canvas, size, rect, geometry);
     }
     if (reservations) {
       layer(
@@ -1204,23 +1291,17 @@ class CanvasPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = room['id'] == selected ? 2 : 1,
       );
-      if ((show('room IDs') || (overlays != null && show('capacities'))) &&
-          r.width > 20 &&
-          r.height > 14) {
+      if (r.width > 20 && r.height > 14) {
         final label = TextPainter(
           text: TextSpan(
-            text:
-                (entrance
-                    ? 'IN'
-                    : exit
-                    ? 'OUT'
-                    : room['id'].toString().replaceFirst(
-                        RegExp(r'^(generated-|room-)'),
-                        '',
-                      )) +
-                (overlays != null && show('capacities')
-                    ? ' C${(geometry?['rooms'] as List? ?? []).where((r) => r['id'] == room['id']).map((r) => r['capacity']).firstOrNull ?? '?'}'
-                    : ''),
+            text: (entrance
+                ? 'IN'
+                : exit
+                ? 'OUT'
+                : room['id'].toString().replaceFirst(
+                    RegExp(r'^(generated-|room-)'),
+                    '',
+                  )),
             style: TextStyle(
               fontSize: 10,
               color: color,
@@ -1238,7 +1319,7 @@ class CanvasPainter extends CustomPainter {
         );
       }
     }
-    for (final kind in ['entrance', 'exit']) {
+    for (final kind in finalGeometry ? ['entrance', 'exit'] : <String>[]) {
       final point = geometry?['${kind}_marker'];
       if (point != null) {
         DungeonPixels.motif(
@@ -1280,14 +1361,7 @@ class CanvasPainter extends CustomPainter {
           ..strokeWidth = 2,
       );
     }
-    for (final tile in blockedTiles) {
-      final xy = tile.split(',').map(int.parse).toList();
-      canvas.drawRect(
-        rect(xy[0], xy[1], 1, 1),
-        Paint()..color = Colors.redAccent.withValues(alpha: .8),
-      );
-    }
-    if (show('assignments')) {
+    if (traceEvent == null && routingReplay == null) {
       for (final actor in payload?['allocation']?['actors'] as List? ?? []) {
         final tile = actor['tile'],
             point = camera.toScreen(Offset(tile['x'] + .5, tile['y'] + .5));
@@ -1295,13 +1369,16 @@ class CanvasPainter extends CustomPainter {
           DungeonPixels.motif(
             canvas,
             rect(tile['x'], tile['y'], 1, 1),
-            'encounter',
+            DungeonPixels.encounterKind(
+              actor as Map,
+              payload?['source_project']?['source'] as Map? ?? source,
+            ),
             dpr,
           );
         }
       }
     }
-    if (overlays != null) {
+    if (traceEvent != null && routingReplay == null) {
       void outline(dynamic b, Color color, double stroke) {
         if (b == null || b['width'] == 0 || b['height'] == 0) return;
         canvas.drawRect(
@@ -1313,67 +1390,118 @@ class CanvasPainter extends CustomPainter {
         );
       }
 
-      for (final n in payload?['layout']?['partitions'] as List? ?? []) {
-        if (show('partition bounds') || n['id'] == selectedPartition) {
-          outline(
-            n['bounds'],
-            n['id'] == selectedPartition
-                ? Colors.orange
-                : colors.violet.withValues(alpha: .4),
-            n['id'] == selectedPartition ? 3 : 1,
-          );
-        }
-      }
-      if (show('connectivity')) {
-        for (final corridor in geometry?['corridors'] as List? ?? []) {
-          final path = corridor['path'] as List;
-          if (path.isEmpty) continue;
-          final line = Path();
-          for (var i = 0; i < path.length; i++) {
-            final t = path[i];
-            final p = camera.toScreen(Offset(t['x'] + .5, t['y'] + .5));
-            if (i == 0) {
-              line.moveTo(p.dx, p.dy);
-            } else {
-              line.lineTo(p.dx, p.dy);
-            }
-          }
-          canvas.drawPath(
-            line,
-            Paint()
-              ..color = colors.moss
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.5,
-          );
-        }
-      }
       final event = traceEvent?['event'];
       if (event != null) {
-        outline(event['bounds'], Colors.amber, 3);
+        final kind = event['kind'].toString();
+        final rejected =
+            kind.contains('rejected') ||
+            kind.contains('infeasible') ||
+            kind == 'backtrack';
+        final color = rejected ? Colors.redAccent : Colors.amber;
+        final highlight = Paint()..color = color;
+        final bounds = event['bounds'];
+        if (bounds != null) {
+          outline(bounds, color, rejected ? 2 : 3);
+          final box = rect(
+            bounds['x'],
+            bounds['y'],
+            bounds['width'],
+            bounds['height'],
+          );
+          if (kind == 'room_placed' || kind == 'fixed_reserved') {
+            canvas.drawRect(
+              Rect.fromLTWH(
+                box.left,
+                box.top,
+                box.width * traceProgress,
+                box.height,
+              ),
+              Paint()..color = color.withValues(alpha: .28),
+            );
+          }
+          if (kind == 'split_selected') {
+            final vertical = event['reason'] == 'x';
+            final cut = event['cut'] as int;
+            final start = vertical
+                ? camera.toScreen(
+                    Offset(cut.toDouble(), (bounds['y'] as int).toDouble()),
+                  )
+                : camera.toScreen(
+                    Offset((bounds['x'] as int).toDouble(), cut.toDouble()),
+                  );
+            final end =
+                start +
+                (vertical ? Offset(0, box.height) : Offset(box.width, 0));
+            canvas.drawLine(
+              start,
+              Offset.lerp(start, end, traceProgress)!,
+              Paint()
+                ..color = color
+                ..strokeWidth = 3,
+            );
+          }
+        }
+        final corridorId = event['corridor_id'];
+        final links = geometry?['corridors'] as List? ?? [];
+        final link = corridorId == null || corridorId == ''
+            ? null
+            : links.where((link) => link['id'] == corridorId).firstOrNull;
         for (final room in payload?['layout']?['rooms'] as List? ?? []) {
-          if (room['id'] == event['room_id']) {
-            outline(room['bounds'], Colors.amber, 3);
+          if (room['id'] == event['room_id'] ||
+              room['id'] == link?['from_room'] ||
+              room['id'] == link?['to_room']) {
+            outline(room['bounds'], color, 3);
           }
         }
         final tile = event['tile'];
         if (tile != null) {
+          final point = camera.toScreen(Offset(tile['x'] + .5, tile['y'] + .5));
           canvas.drawCircle(
-            camera.toScreen(Offset(tile['x'] + .5, tile['y'] + .5)),
-            math.max(3, s),
-            Paint()..color = Colors.amber.withValues(alpha: .8),
+            point,
+            math.max(3, s * (.55 + .45 * traceProgress)),
+            highlight,
           );
         }
-        final corridorId = event['corridor_id'];
-        if (corridorId != null) {
-          for (final corridor in geometry?['corridors'] as List? ?? []) {
-            if (corridor['id'] == corridorId) {
-              for (final tile in corridor['path'] as List) {
-                canvas.drawRect(
-                  rect(tile['x'], tile['y'], 1, 1),
-                  Paint()..color = Colors.amber.withValues(alpha: .6),
-                );
-              }
-            }
+        if (kind == 'corridor_routed' && link != null) {
+          final path = link['path'] as List;
+          final visible = (path.length * traceProgress).ceil();
+          for (final tile in path.take(visible)) {
+            canvas.drawRect(
+              rect(tile['x'], tile['y'], 1, 1),
+              Paint()..color = color.withValues(alpha: .75),
+            );
+          }
+        }
+        if (allocationDecision == null &&
+            (kind == 'reconstruct' || kind == 'optimal')) {
+          final subset = event['subset'] as int? ?? 0;
+          final packs = {
+            for (var i = 0; i < tracePackOrder.length; i++)
+              if ((subset & (1 << i)) != 0) tracePackOrder[i],
+          };
+          final actors = payload?['allocation']?['actors'] as List? ?? [];
+          final matching = kind == 'optimal'
+              ? actors
+              : actors
+                    .where(
+                      (a) =>
+                          a['room_id'] == event['room_id'] &&
+                          packs.contains(a['pack_id']),
+                    )
+                    .toList();
+          for (final actor in matching.take(
+            (matching.length * traceProgress).ceil(),
+          )) {
+            final tile = actor['tile'];
+            DungeonPixels.motif(
+              canvas,
+              rect(tile['x'], tile['y'], 1, 1),
+              DungeonPixels.encounterKind(
+                actor as Map,
+                payload?['source_project']?['source'] as Map? ?? source,
+              ),
+              dpr,
+            );
           }
         }
       }
@@ -1418,6 +1546,8 @@ class CanvasPainter extends CustomPainter {
         }
       }
     }
+    if (allocationDecision != null) _paintAllocation(canvas, size);
+    if (routingReplay != null) _paintRoutingLegend(canvas, size);
     canvas.drawRect(
       rect(0, 0, w, h),
       Paint()
@@ -1426,6 +1556,486 @@ class CanvasPainter extends CustomPainter {
     );
     canvas.restore();
     paintMicros = timer.elapsedMicroseconds;
+  }
+
+  void _paintRouting(
+    Canvas canvas,
+    Size size,
+    Rect Function(int, int, int, int) rect,
+    dynamic geometry,
+  ) {
+    final replay = routingReplay!;
+    final visible = Offset.zero & size;
+    final scale = camera.scale;
+    final searching =
+        replay.phase == 'routing_started' || replay.phase == 'search_batch';
+    final carving = const {
+      'carve_batch',
+      'carving_finished',
+      'corridor_routed',
+      'room_reachable',
+    }.contains(replay.phase);
+    final searchOpacity = searching
+        ? 1.0
+        : carving
+        ? .08
+        : .2;
+    void floorTile(int x, int y) {
+      final tile = rect(x, y, 1, 1);
+      if (!tile.overlaps(visible)) return;
+      canvas.drawRect(tile, Paint()..color = DungeonPixels.floor);
+      DungeonPixels.motif(canvas, tile, 'floor', dpr, variant: x + y * 7);
+    }
+
+    // Room interiors are known before routing; future corridors are not shown.
+    for (final room in payload?['layout']?['rooms'] as List? ?? []) {
+      final b = room['bounds'];
+      final box = rect(b['x'], b['y'], b['width'], b['height']);
+      if (!box.overlaps(visible)) continue;
+      canvas.drawRect(box, Paint()..color = DungeonPixels.floor);
+      if (scale >= 8) {
+        final view = camera.visible(
+          size,
+          source['settings']['columns'],
+          source['settings']['rows'],
+        );
+        for (
+          var y = math.max(b['y'] as int, view.top.toInt());
+          y < math.min(b['y'] + b['height'], view.bottom.toInt());
+          y++
+        ) {
+          for (
+            var x = math.max(b['x'] as int, view.left.toInt());
+            x < math.min(b['x'] + b['width'], view.right.toInt());
+            x++
+          ) {
+            floorTile(x, y);
+          }
+        }
+      }
+      if (room['id'] == replay.fromRoom || room['id'] == replay.toRoom) {
+        canvas.drawRect(
+          box.inflate(1),
+          Paint()
+            ..color = const Color(0xff80dcb3)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        );
+      }
+    }
+    final width = source['settings']['corridor_width'] as int;
+    for (final corridor in geometry?['corridors'] as List? ?? []) {
+      if (!replay.completedCorridors.contains(corridor['id'])) continue;
+      for (final anchor in corridor['path'] as List) {
+        for (var y = anchor['y'] as int; y < anchor['y'] + width; y++) {
+          for (var x = anchor['x'] as int; x < anchor['x'] + width; x++) {
+            floorTile(x, y);
+          }
+        }
+      }
+    }
+    final currentSteps = traceEvent?['event']?['steps'] as List? ?? const [];
+    final visibleSteps = (currentSteps.length * traceProgress).ceil();
+    final pendingCarve = {
+      if (traceEvent?['event']?['kind'] == 'carve_batch')
+        for (final raw in currentSteps.skip(visibleSteps))
+          '${replay.corridorId}:${raw['tile']['x']},${raw['tile']['y']}',
+    };
+    Offset center(TraceTile tile) =>
+        camera.toScreen(Offset(tile.x + .5, tile.y + .5));
+    for (final tile in replay.expanded.values) {
+      final box = rect(tile.x, tile.y, replay.width, replay.width);
+      if (box.overlaps(visible)) {
+        canvas.drawRect(
+          box,
+          Paint()
+            ..color = const Color(0xff4680a5)
+                .withValues(alpha: .25 * searchOpacity),
+        );
+      }
+    }
+    for (final tile in replay.discovered.values) {
+      final parent = replay.parents[tile.key];
+      if (parent == null) continue;
+      final edge = Rect.fromPoints(center(tile), center(parent)).inflate(2);
+      if (!edge.overlaps(visible)) continue;
+      canvas.drawLine(
+        center(tile),
+        center(parent),
+        Paint()
+          ..color = const Color(0xff78abd0)
+              .withValues(alpha: .45 * searchOpacity)
+          ..strokeWidth = math.max(1, scale * .1),
+      );
+    }
+    for (final tile in replay.frontier) {
+      final box = rect(tile.x, tile.y, replay.width, replay.width);
+      if (!box.overlaps(visible)) continue;
+      canvas.drawRect(
+        box.deflate(scale > 4 ? .5 : 0),
+        Paint()
+          ..color = const Color(0xff80dcb3).withValues(alpha: searchOpacity)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1, scale * .12),
+      );
+    }
+    final reverseVisible = traceEvent?['event']?['kind'] == 'reconstruct_batch'
+        ? replay.reconstructed.length - currentSteps.length + visibleSteps
+        : replay.reconstructed.length;
+    for (final tile in replay.reconstructed.take(reverseVisible)) {
+      final parent = replay.parents[tile.key];
+      if (parent != null) {
+        canvas.drawLine(
+          center(tile),
+          center(parent),
+          Paint()
+            ..color = const Color(0xffffce79)
+                .withValues(alpha: carving ? .25 : 1)
+            ..strokeWidth = carving
+                ? math.max(1, scale * .06)
+                : math.max(2, scale * .3),
+        );
+      }
+      if (!carving) {
+        canvas.drawRect(
+          rect(tile.x, tile.y, 1, 1).deflate(scale * .2),
+          Paint()..color = const Color(0xffffce79),
+        );
+      }
+    }
+    // Stone is drawn above retained search/path evidence as the native carve progresses.
+    for (final entry in replay.carved.entries) {
+      if (pendingCarve.contains(entry.key)) continue;
+      final (anchor, footprint) = entry.value;
+      for (var y = anchor.y; y < anchor.y + footprint; y++) {
+        for (var x = anchor.x; x < anchor.x + footprint; x++) {
+          floorTile(x, y);
+        }
+      }
+    }
+    if (replay.phase == 'carve_batch') {
+      for (final raw in currentSteps.take(visibleSteps)) {
+        final tile = raw['tile'] as Map;
+        canvas.drawRect(
+          rect(tile['x'], tile['y'], replay.width, replay.width).deflate(.5),
+          Paint()
+            ..color = const Color(0xff80dcb3)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.25,
+        );
+      }
+    }
+    for (final door in geometry?['doors'] as List? ?? []) {
+      final selected = replay.selectedDoors.any(
+        (id) =>
+            id.endsWith(':${door['room_id']}') &&
+            (door['id'] as String).startsWith(id.split(':').first),
+      );
+      if (!selected) continue;
+      for (final point in door['tiles'] as List) {
+        DungeonPixels.motif(
+          canvas,
+          rect(point['x'], point['y'], 1, 1),
+          'door',
+          dpr,
+        );
+      }
+    }
+    final current = replay.currentTile;
+    if (current != null) {
+      canvas.drawRect(
+        rect(current.x, current.y, replay.width, replay.width).inflate(1),
+        Paint()
+          ..color = Colors.white.withValues(alpha: .65 + .35 * traceProgress)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+    }
+  }
+
+  void _paintAllocation(Canvas canvas, Size size) {
+    final decision = allocationDecision!;
+    final kind = decision.kind;
+    final reconstructing = kind == 'reconstruct';
+    final summary = kind == 'room_summary' || kind == 'preflight';
+    final room = decision.room;
+    final bounds = room?['bounds'];
+    final roomCenter = bounds == null
+        ? null
+        : camera.toScreen(
+            Offset(
+              bounds['x'] + bounds['width'] / 2,
+              bounds['y'] + bounds['height'] / 2,
+            ),
+          );
+    final targetWidth = size.width < 1000
+        ? math.max(240.0, size.width * .4)
+        : 470.0;
+    final cardWidth = math.min(targetWidth, math.max(180.0, size.width - 24));
+    final packs = decision.packs;
+    final cardHeight = packs.isEmpty ? 164.0 : 244.0;
+    final card = Rect.fromLTWH(
+      roomCenter != null && roomCenter.dx < size.width / 2
+          ? size.width - cardWidth - 12
+          : 12,
+      roomCenter != null && roomCenter.dy < size.height / 2
+          ? math.max(12.0, size.height - cardHeight - 12)
+          : 12,
+      cardWidth,
+      math.min(cardHeight, size.height - 24),
+    );
+    const ink = Color(0xffe3e7df),
+        muted = Color(0xffb6c2c5),
+        mint = Color(0xff80dcb3);
+    const red = Color(0xfff19186), gold = Color(0xffffce79);
+    void label(
+      String value,
+      Offset offset, {
+      double width = 440,
+      double fontSize = 11,
+      Color color = ink,
+      int lines = 2,
+    }) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: value,
+          style: TextStyle(fontSize: fontSize, height: 1.25, color: color),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: lines,
+        ellipsis: '…',
+      )..layout(maxWidth: math.max(1, width));
+      painter.paint(canvas, offset);
+    }
+
+    Offset actorPoint(Map actor) => camera.toScreen(
+      Offset(actor['tile']['x'] + .5, actor['tile']['y'] + .5),
+    );
+    final actors = payload?['allocation']?['actors'] as List? ?? [];
+    final currentIds = packs.map((p) => p['id']).toSet();
+    final spriteSize = camera.scale.clamp(10, 32).toDouble();
+    for (final actor in actors) {
+      final assigned = allocatedPacks[actor['pack_id']] == actor['room_id'];
+      if (!assigned && kind != 'optimal') continue;
+      if (reconstructing && currentIds.contains(actor['pack_id'])) continue;
+      DungeonPixels.motif(
+        canvas,
+        Rect.fromCenter(
+          center: actorPoint(actor),
+          width: spriteSize,
+          height: spriteSize,
+        ),
+        DungeonPixels.encounterKind(actor as Map, decision.source),
+        dpr,
+      );
+    }
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(card, const Radius.circular(8)),
+      Paint()..color = const Color(0xf2171921),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(card, const Radius.circular(8)),
+      Paint()
+        ..color = const Color(0xff556477)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+    final title = reconstructing
+        ? 'RECONSTRUCT · assign selected packs'
+        : kind == 'optimal'
+        ? 'EXACT WINNING INVENTORY'
+        : summary
+        ? 'ROOM SUMMARY · recorded state count'
+        : kind.startsWith('state_')
+        ? 'CHOOSE PREDECESSOR · recorded DP state'
+        : 'CANDIDATE TRIAL · ${decision.sampled ? 'representative recorded transition' : 'recorded transition'}';
+    label(
+      title,
+      card.topLeft + const Offset(12, 9),
+      width: cardWidth - 24,
+      fontSize: 12,
+      color: gold,
+      lines: 1,
+    );
+    final roomText = room == null
+        ? 'Accepted inventory · global threat budget ${decision.budget ?? 'unavailable'}'
+        : '${room['name'] ?? decision.roomId} · ${room['role']} · capacity ${decision.capacity ?? 'unavailable'} · ${room['bounds']['width']} × ${room['bounds']['height']} tiles · tags ${(room['tags'] as List? ?? []).join(', ')}';
+    label(
+      roomText,
+      card.topLeft + const Offset(12, 29),
+      width: cardWidth - 24,
+      color: muted,
+    );
+    final shown = packs.take(math.max(1, (cardWidth - 24) ~/ 95)).toList();
+    final chipWidth = (cardWidth - 24) / math.max(1, shown.length);
+    final origins = <String, Offset>{};
+    for (var i = 0; i < shown.length; i++) {
+      final pack = shown[i];
+      final origin = card.topLeft + Offset(12 + chipWidth * (i + .5), 79);
+      origins[pack['id'] as String] = origin;
+      DungeonPixels.motif(
+        canvas,
+        Rect.fromCenter(center: origin, width: 30, height: 30),
+        DungeonPixels.encounterKind({'pack_id': pack['id']}, decision.source),
+        dpr,
+      );
+      label(
+        pack['name'] as String,
+        card.topLeft + Offset(12 + chipWidth * i, 98),
+        width: chipWidth - 4,
+        lines: 1,
+      );
+      label(
+        '${pack['slots']} slots · ${pack['threat']} threat',
+        card.topLeft + Offset(12 + chipWidth * i, 113),
+        width: chipWidth - 4,
+        fontSize: 10,
+        color: gold,
+      );
+      final roles = (pack['allowed_roles'] as List? ?? []).join('/');
+      final tags = (pack['required_tags'] as List? ?? []).join('/');
+      label(
+        'min ${pack['min_room_width']}×${pack['min_room_height']} · ${roles.isEmpty ? 'any role' : roles}${tags.isEmpty ? '' : ' · $tags'}',
+        card.topLeft + Offset(12 + chipWidth * i, 127),
+        width: chipWidth - 4,
+        fontSize: 9,
+        color: muted,
+      );
+    }
+    var y = packs.isEmpty ? 62.0 : 160.0;
+    if (decision.evidence) {
+      label(
+        'Slots ${decision.slots} / ${decision.capacity}  ${decision.slotsFit == true ? 'PASS' : 'FAIL'}',
+        card.topLeft + Offset(12, y),
+        width: (cardWidth - 24) * .55,
+        color: decision.slotsFit == true ? mint : red,
+        lines: 1,
+      );
+      label(
+        'Rules ${decision.compatible == true ? 'PASS' : 'FAIL'}',
+        card.topLeft + Offset(cardWidth * .6, y),
+        width: cardWidth * .4 - 12,
+        color: decision.compatible == true ? mint : red,
+        lines: 1,
+      );
+      label(
+        'Prior F[room−1, ${decision.predecessor}] ${decision.priorFeasible == true ? 'PASS · reachable' : 'FAIL · unreachable'}',
+        card.topLeft + Offset(12, y + 18),
+        width: cardWidth - 24,
+        color: decision.priorFeasible == true ? mint : red,
+      );
+      label(
+        'Inventory threat ${decision.inventoryThreat} / budget ${decision.budget} · subset ${decision.subsetThreat}',
+        card.topLeft + Offset(12, y + 36),
+        width: cardWidth - 24,
+        fontSize: 10,
+      );
+      label(
+        reconstructing ? 'Recorded predecessor fixes this assignment.' : 'Budget is checked on the final inventory. Feasible trials remain candidates.',
+        card.topLeft + Offset(12, y + 54),
+        width: cardWidth - 24,
+        fontSize: 10,
+        color: muted,
+      );
+    } else {
+      label(
+        kind == 'room_summary'
+            ? '${decision.event['states']} inventory states reachable after this room.'
+            : kind == 'optimal'
+            ? 'Final threat ${payload?['allocation']?['total_threat']} / budget ${decision.budget}'
+            : 'Candidate feasibility evidence is unavailable at this step.',
+        card.topLeft + Offset(12, y),
+        width: cardWidth - 24,
+      );
+      label(
+        summary
+            ? 'Larger runs record representative candidates and room summaries.'
+            : 'Only recorded transitions are animated.',
+        card.topLeft + Offset(12, y + 24),
+        width: cardWidth - 24,
+        color: muted,
+      );
+    }
+    if (packs.length > shown.length) {
+      label(
+        '+${packs.length - shown.length} other packs in this subset',
+        card.bottomLeft + const Offset(12, -15),
+        width: cardWidth - 24,
+        fontSize: 9,
+      );
+    }
+
+    if (roomCenter == null) return;
+    for (final pack in packs) {
+      final origin =
+          origins[pack['id']] ?? card.bottomCenter - const Offset(0, 12);
+      if (reconstructing) {
+        for (final actor in actors.where(
+          (a) => a['pack_id'] == pack['id'] && a['room_id'] == decision.roomId,
+        )) {
+          final target = actorPoint(actor as Map);
+          final point = Offset.lerp(origin, target, traceProgress)!;
+          DungeonPixels.motif(
+            canvas,
+            Rect.fromCenter(
+              center: point,
+              width: spriteSize,
+              height: spriteSize,
+            ),
+            DungeonPixels.encounterKind(actor, decision.source),
+            dpr,
+          );
+        }
+      } else if (!summary && kind != 'optimal' && decision.evidence) {
+        final target = Offset.lerp(
+          origin,
+          roomCenter,
+          decision.feasible ? .75 : .35,
+        )!;
+        final point = Offset.lerp(origin, target, traceProgress)!;
+        canvas.saveLayer(
+          Rect.fromCenter(center: point, width: 42, height: 42),
+          Paint()..color = Colors.white.withValues(alpha: .65),
+        );
+        DungeonPixels.motif(
+          canvas,
+          Rect.fromCenter(center: point, width: 24, height: 24),
+          DungeonPixels.encounterKind({'pack_id': pack['id']}, decision.source),
+          dpr,
+        );
+        canvas.restore();
+        if (!decision.feasible) {
+          label(
+            '×',
+            point + const Offset(8, -16),
+            width: 20,
+            fontSize: 20,
+            color: red,
+          );
+        }
+      }
+    }
+  }
+
+  void _paintRoutingLegend(Canvas canvas, Size size) {
+    final replay = routingReplay!;
+    final label = TextPainter(
+      text: TextSpan(
+        text:
+            '${replay.geometryComplete ? 'Validated geometry complete · derived walls and terminal markers shown' : 'QUEUE frontier ${replay.frontier.length}  ·  EXPANDED ${replay.expanded.length}  ·  PARENT links in blue'}\n'
+            '${const {'carve_batch', 'carving_finished', 'corridor_routed'}.contains(replay.phase) ? 'CARVING stone floor · faded search and path retained for context' : 'PATH reconstruction in gold  ·  CARVED stone floor'}'
+            '${replay.sampled ? '\nSampled capture · missing search/path steps omitted. Completed corridors use accepted final context.' : '\nOnly recorded search, parent, reconstruction and carve steps are displayed.'}',
+        style: const TextStyle(
+          fontSize: 11,
+          height: 1.5,
+          color: Color(0xffe3e7df),
+          backgroundColor: Color(0xeb171921),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 4,
+    )..layout(maxWidth: math.max(1, size.width - 24));
+    label.paint(canvas, const Offset(12, 12));
   }
 
   @override

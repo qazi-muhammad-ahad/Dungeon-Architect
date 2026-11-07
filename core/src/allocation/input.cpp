@@ -1,6 +1,7 @@
 #include "dungeon_architect/allocation.h"
 #include <algorithm>
 #include <map>
+#include <queue>
 #include <set>
 
 namespace dungeon_architect {
@@ -70,14 +71,30 @@ Result<AllocationInput> prepare_allocation(const Project& source,const RoomLayou
     }
     status = validate_routed_geometry(source,layout,refreshed); if (!status.ok()) return {status,{}};
     AllocationInput input; input.settings = source.settings; input.geometry_id = geometry.id;
-    input.geometry_revision = geometry.geometry_revision; input.packs = source.packs;
+    input.geometry_revision = geometry.geometry_revision; input.packs = source.effective_packs();
+    input.finale_room = geometry.exit_room;
+    std::map<RoomId,std::vector<RoomId>> neighbors;
+    for (const auto& link : geometry.corridors) {
+        neighbors[link.from_room].push_back(link.to_room);
+        neighbors[link.to_room].push_back(link.from_room);
+    }
+    std::map<RoomId,int> depth{{geometry.entrance_room,0}};
+    std::queue<RoomId> frontier;
+    frontier.push(geometry.entrance_room);
+    while (!frontier.empty()) {
+        const auto room = frontier.front(); frontier.pop();
+        for (const auto& next : neighbors[room])
+            if (depth.emplace(next,depth.at(room)+1).second) frontier.push(next);
+    }
     for (const auto& placed : refreshed.rooms) {
         auto room = *std::find_if(layout.rooms.begin(),layout.rooms.end(),[&](const Room& r) { return r.id == placed.id; });
         const auto current = std::find_if(source.rooms.begin(),source.rooms.end(),[&](const Room& r) { return r.id == room.id; });
         if (current != source.rooms.end()) { room.tags = current->tags; room.capacity_override = current->capacity_override; }
         if (room.id == geometry.entrance_room) room.role = RoomRole::entrance;
         else if (room.id == geometry.exit_room) room.role = RoomRole::exit;
-        input.rooms.push_back({room,placed.reachable,placed.capacity,placed.spawn_positions});
+        const auto distance = depth.find(room.id);
+        input.rooms.push_back({room,placed.reachable,placed.capacity,placed.spawn_positions,
+                               distance == depth.end() ? 0 : distance->second});
     }
     status = validate_allocation_input(input); if (!status.ok()) return {status,{}};
     return {{},std::move(input)};
